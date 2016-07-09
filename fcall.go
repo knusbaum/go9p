@@ -462,7 +462,7 @@ func (read *RRead) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 	read.count, buff = FromLittleE32(buff)
-	read.data = buff[:read.count - 1]
+	read.data = buff[:read.count]
 	return buff[read.count:], nil
 }
 

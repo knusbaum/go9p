@@ -164,15 +164,15 @@ func ParseCall(r io.Reader) (IFCall, error) {
 //	case Rremove:
 //		call = &RRemove{}
 //		break
-//	case Tstat:
-//		call = &TStat{}
-//		break
+	case Tstat:
+		call = &TStat{}
+		break
 //	case Rstat:
 //		call = &RStat{}
 //		break
-//	case Twstat:
-//		call = &TWstat{}
-//		break
+	case Twstat:
+		call = &TWstat{}
+		break
 //	case Rwstat:
 //		call = &RWstat{}
 //		break

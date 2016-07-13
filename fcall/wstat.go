@@ -21,6 +21,7 @@ func (wstat *TWstat) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 	wstat.Fid, buff = FromLittleE32(buff)
+	_, buff = FromLittleE16(buff) // Throw away stat length.
 	buff, err = wstat.Stat.Parse(buff)
 	if err != nil {
 		return nil, err
@@ -44,22 +45,50 @@ func (wstat *TWstat) Compose() []byte {
 	return buff
 }
 
-//func (wstat *TWstat) Reply(fs Filesystem, conn Connection) IFCall {
-//	file := fs.FileForPath(conn.PathForFid(wstat.Fid))
-//	if file == nil {
-//		return &RError{FCall{Rerror, wstat.Tag}, "No such file."}
-//	}
+func (wstat *TWstat) Reply(fs Filesystem, conn Connection) IFCall {
+	file := fs.FileForPath(conn.PathForFid(wstat.Fid))
+	if file == nil {
+		return &RError{FCall{Rerror, wstat.Tag}, "No such file."}
+	}
+
+	var stat *Stat
+	var newstat *Stat
+	stat = &file.stat
+	newstat = &wstat.Stat
+
+	// Need to implement a whole bunch of complicated rules.
+	// See: http://knusbaum.inlisp.org/res/rfc9p2000.html
+
+	if len(newstat.Name) != 0 {
+		stat.Name = newstat.Name
+	}
+
+	var maxlen uint64
+	maxlen = ^maxlen
+	if newstat.Length != maxlen {
+		stat.Length = newstat.Length
+	}
+
+	var max32 uint32
+	max32 = ^max32
+	if newstat.Mode != max32 {
+		newmode := newstat.Mode & 0x000001FF;
+		stat.Mode = (stat.Mode & ^uint32(0x1FF)) | newmode
+	}
+
+	if newstat.Mtime != max32 {
+		stat.Mtime = newstat.Mtime
+	}
+
+	if len(newstat.Gid) != 0 {
+		stat.Gid = newstat.Gid
+	}
+
+	return &RWstat{FCall{Rwstat, wstat.Tag}}
 //
-//	var stat *Stat
-//	var newstat *Stat
-//	stat = &file.stat
-//	newstat = &wstat.Stat
 //
-//	// Need to implement a whole bunch of complicated rules.
-//	// See: http://knusbaum.inlisp.org/res/rfc9p2000.html
-//	
 //	return &RError{FCall{Rerror, wstat.Tag}, "Not implemented."}
-//}
+}
 
 type RWstat struct {
 	FCall

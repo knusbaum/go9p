@@ -1,6 +1,40 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+)
+
+//type Qid struct {
+//	Qtype uint8
+//	Vers uint32
+//	Uid uint64
+//}
+//
+//func (qid *Qid) String() string {
+//	return fmt.Sprintf("qtype: %d, version: %d, uid: %d",
+//		qid.Qtype, qid.Vers, qid.Uid)
+//}
+//
+//func (qid *Qid) Parse(buff []byte) ([]byte, error) {
+//	if len(buff) == 0 {
+//		return nil, &ParseError{"can't parse. Reached end of buffer."}
+//	}
+//	qid.Qtype = buff[0]
+//	qid.Vers, buff = FromLittleE32(buff[1:])
+//	qid.Uid, buff = FromLittleE64(buff)
+//	return buff, nil
+//}
+//
+//func (qid *Qid) Compose() []byte {
+//	buff := make([]byte, 13)
+//	buffer := buff
+//
+//	buffer[0] = qid.Qtype; buffer = buffer[1:]
+//	buffer = ToLittleE32(qid.Vers, buffer)
+//	buffer = ToLittleE64(qid.Uid, buffer)
+//
+//	return buff
+//}
 
 type TStat struct {
 	FCall
@@ -35,6 +69,14 @@ func (stat *TStat) Compose() []byte {
 	return buff
 }
 
+func (stat *TStat) Reply(fs Filesystem, conn Connection) IFCall {
+	file := fs.FileForPath(conn.PathForFid(stat.Fid))
+	if file == nil {
+		return &RError{FCall{Rstat, stat.Tag}, "No such file."}
+	}
+	return &RStat{FCall{Rstat, stat.Tag}, file.stat}
+}
+
 type Stat struct {
 	Stype uint16
 	Dev uint32
@@ -50,7 +92,7 @@ type Stat struct {
 }
 
 func (stat *Stat) String() string {
-	return fmt.Sprintf("stype: %d, dev: %d, qid: [%s], mode: %d, atime: %d, mtime: %d, length: %d, name: %s, uid: %s, gid: %s, muid: %s",
+	return fmt.Sprintf("stype: %d, dev: %d, qid: [%s], mode: %o, atime: %d, mtime: %d, length: %d, name: %s, uid: %s, gid: %s, muid: %s",
 		stat.Stype, stat.Dev, &stat.Qid, stat.Mode,
 		stat.Atime, stat.Mtime, stat.Length, stat.Name, stat.Uid,
 		stat.Gid, stat.Muid)
@@ -71,7 +113,6 @@ func (stat *Stat) Parse(buff []byte) ([]byte, error) {
 	stat.Name, buff = FromString(buff)
 	stat.Uid, buff = FromString(buff)
 	stat.Gid, buff = FromString(buff)
-//	fmt.Printf("buff: %s, len: %d, cap: %d\n", string(buff), len(buff), cap(buff))
 	stat.Muid, buff = FromString(buff)
 	return buff, nil
 }
@@ -145,4 +186,8 @@ func (stat *RStat) Compose() []byte {
 	copy(buffer, stat.Stat.Compose())
 	
 	return buff
+}
+
+func (stat *RStat) Reply(fs Filesystem, conn Connection) IFCall {
+	return nil
 }

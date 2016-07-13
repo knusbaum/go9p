@@ -1,6 +1,9 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type TCreate struct {
 	FCall
@@ -45,9 +48,51 @@ func (create *TCreate) Compose() []byte {
 	return buff
 }
 
+func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
+	file := fs.FileForPath(conn.PathForFid(create.Fid))
+	if file == nil {
+		return &RError{FCall{Rerror, create.Tag}, "No such file."}
+	}
+
+	var mode uint32
+	var i uint32
+	for i = 0; i < 9; i++ {
+		mode |= (1<<i)
+	}
+	mode = mode ^ (1<<1); // o-w
+	
+	// TODO: Probably some permissions stuff.
+
+	path := ""
+	if file.path == "/" {
+		path = file.path + create.Name
+	} else {
+		path = file.path + "/" + create.Name
+	}
+	
+	newfile :=
+		fs.AddFile(path,
+		Stat{
+			Stype: 0,
+			Dev: 0,
+			Qid: fs.AllocQid(0),
+			Mode: mode,
+			Atime: uint32(time.Now().Unix()),
+			Mtime: uint32(time.Now().Unix()),
+		    Length: 13,
+			Name: create.Name,
+			Uid: "root",
+			Gid: "root",
+			Muid: "root"},
+		file)
+
+	
+	return &RCreate{FCall{Rcreate, create.Tag}, newfile.stat.Qid, iounit}
+}
+
 type RCreate struct {
 	FCall
-	Qid Qid
+	Qid Qid 
 	Iounit uint32
 }
 

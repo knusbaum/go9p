@@ -1,6 +1,8 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type TRVersion struct {
 	FCall
@@ -9,8 +11,14 @@ type TRVersion struct {
 }
 
 func (version *TRVersion) String() string {
-	return fmt.Sprintf("(t|r)version: [%s, msize: %d, version: %s]",
-		&version.FCall, version.Msize, version.Version)
+	var c byte
+	if version.Ctype == Tversion {
+		c = 't'
+	} else {
+		c = 'r'
+	}
+	return fmt.Sprintf("%cversion: [%s, msize: %d, version: %s]",
+		c, &version.FCall, version.Msize, version.Version)
 }
 
 func (version *TRVersion) Parse(buff []byte) ([]byte, error) {
@@ -37,4 +45,16 @@ func (version *TRVersion) Compose() []byte {
 	buffer = ToString(version.Version, buffer)
 	
 	return buff
+}
+
+func (version *TRVersion) Reply(filesystem Filesystem, conn Connection) IFCall {
+	var reply TRVersion = TRVersion{}
+	if version.Ctype == Tversion {
+		reply = *version
+		reply.Ctype = Rversion
+	} else {
+		reply = *version
+		reply.Ctype = Tversion
+	}
+	return &reply
 }

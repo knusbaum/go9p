@@ -1,6 +1,8 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type TAuth struct {
 	FCall
@@ -43,6 +45,14 @@ func (auth *TAuth) Compose() []byte {
 	return buff
 }
 
+func (auth *TAuth) Reply(filesystem Filesystem, conn Connection) IFCall {
+	reply := RError{}
+	reply.Ctype = Rerror
+	reply.Tag = auth.Tag
+	reply.Ename = "Not Enabled."
+	return &reply
+}
+
 type RAuth struct {
 	FCall
 	Aqid Qid
@@ -78,4 +88,8 @@ func (auth *RAuth) Compose() []byte {
 	qidbuffer := auth.Aqid.Compose()
 	copy(buffer, qidbuffer)
 	return buff
+}
+
+func (auth *RAuth) Reply(filesystem Filesystem, conn Connection) IFCall {
+	return nil
 }

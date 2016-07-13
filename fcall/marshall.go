@@ -99,9 +99,9 @@ func ToString(s string, buff []byte) []byte {
 }
 
 type ParseError struct {
-	err string
+	Err string
 }
 
 func (pe *ParseError) Error() string {
-	return pe.err
+	return pe.Err
 }

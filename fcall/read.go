@@ -40,6 +40,65 @@ func (read *TRead) Compose() []byte {
 	return buff
 }
 
+func (read *TRead) Reply(fs Filesystem, conn Connection) IFCall {
+	if read.Count > iounit {
+		return &RError{FCall{Rerror, read.Tag}, "Read size too large."}
+	}
+
+	file := fs.FileForPath(conn.PathForFid(read.Fid))
+	if file == nil {
+		return &RError{FCall{Rerror, read.Tag}, "Failed to read from FID."}
+	}
+
+	openmode := conn.GetFidOpenmode(read.Fid)
+	if (openmode & 0x0F) != Oread &&
+		(openmode & 0x0F) != Ordwr &&
+		(openmode & 0x0F) != Oexec {
+		return &RError{FCall{Rerror, read.Tag}, "File not opened."}
+	}
+
+	if file.stat.Mode & (1<<31) != 0 {
+		fmt.Println("Writing a directory.")
+
+		contents := make([]byte, 0)
+		for _, f := range file.subfiles {
+			contents = append(contents, f.stat.Compose()...)
+			fmt.Println("Writing stat: ", &f.stat)
+		}
+
+		var count uint64 = 0
+		if read.Offset + uint64(read.Count) > uint64(len(contents)) {
+			count = uint64(len(contents)) - read.Offset
+		} else {
+			count = uint64(read.Count)
+		}
+
+		fmt.Printf("Contents is: %d, reading from: %d, bytes: %d\n",
+			len(contents), read.Offset, count)
+
+		data := make([]byte, count)
+		if count > 0 {
+			copy(data, contents[read.Offset:count])
+		}
+
+		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
+	} else {
+		var count uint64 = 0
+		if read.Offset + uint64(read.Count) > uint64(13) {
+			count = uint64(13) - read.Offset
+		} else {
+			count = uint64(read.Count)
+		}
+		content := []byte("Hello, World\n")
+
+		data := make([]byte, count)
+		if count > 0 {
+			copy(data, content[read.Offset:count])
+		}
+		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
+	}
+}
+
 type RRead struct {
 	FCall
 	Count uint32

@@ -1,6 +1,8 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type TWstat struct {
 	FCall
@@ -41,6 +43,23 @@ func (wstat *TWstat) Compose() []byte {
 
 	return buff
 }
+
+//func (wstat *TWstat) Reply(fs Filesystem, conn Connection) IFCall {
+//	file := fs.FileForPath(conn.PathForFid(wstat.Fid))
+//	if file == nil {
+//		return &RError{FCall{Rerror, wstat.Tag}, "No such file."}
+//	}
+//
+//	var stat *Stat
+//	var newstat *Stat
+//	stat = &file.stat
+//	newstat = &wstat.Stat
+//
+//	// Need to implement a whole bunch of complicated rules.
+//	// See: http://knusbaum.inlisp.org/res/rfc9p2000.html
+//	
+//	return &RError{FCall{Rerror, wstat.Tag}, "Not implemented."}
+//}
 
 type RWstat struct {
 	FCall

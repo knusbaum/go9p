@@ -1,6 +1,8 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type TAttach struct {
 	FCall
@@ -45,6 +47,17 @@ func (attach *TAttach) Compose() []byte {
 	return buff
 }
 
+func (attach *TAttach) Reply(filesystem Filesystem, conn Connection) IFCall {
+	conn.SetUname(attach.Uname)
+	conn.SetFidPath(attach.Fid, "/")
+	reply := RAttach{
+		FCall: FCall{
+			Ctype: Rattach,
+			Tag: attach.Tag},
+		Qid: Qid{(1 << 7), 28, 1}}
+	return &reply
+}
+
 type RAttach struct {
 	FCall
 	Qid Qid
@@ -80,4 +93,8 @@ func (attach *RAttach) Compose() []byte {
 	qidbuff := attach.Qid.Compose()
 	copy(buffer, qidbuff)
 	return buff
+}
+
+func (attach *RAttach) Reply(filesystem Filesystem, conn Connection) IFCall {
+	return nil
 }

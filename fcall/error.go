@@ -1,6 +1,8 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type RError struct {
 	FCall
@@ -34,4 +36,8 @@ func (error *RError) Compose() []byte {
 	buffer = ToString(error.Ename, buffer)
 
 	return buff
+}
+
+func (error *RError) Reply (filesystem Filesystem, conn Connection) IFCall {
+	return nil
 }

@@ -34,6 +34,11 @@ func (clunk *TClunk) Compose() []byte {
 	return buff
 }
 
+func (clunk *TClunk) Reply(fs Filesystem, conn Connection) IFCall {
+	delete(conn.fids, clunk.Fid)
+	return &RClunk{FCall{Rclunk, clunk.Tag}}
+}
+
 type RClunk struct {
 	FCall
 }
@@ -61,4 +66,8 @@ func (clunk *RClunk) Compose() []byte {
 	buffer[0] = clunk.Ctype; buffer = buffer[1:]
 	buffer = ToLittleE16(clunk.Tag, buffer)
 	return buff
+}
+
+func (clunk *RClunk) Reply(Filesystem, Connection) IFCall {
+	return nil
 }

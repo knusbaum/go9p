@@ -1,6 +1,12 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+)
+
+const (
+	iounit = 8168
+)
 
 type TOpen struct {
 	FCall
@@ -37,6 +43,30 @@ func (open *TOpen) Compose() []byte {
 	buffer[0] = open.Mode; buffer = buffer[1:]
 	return buff
 }
+
+func (open *TOpen) Reply(fs Filesystem, conn Connection) IFCall {
+	file := fs.FileForPath(conn.PathForFid(open.Fid))
+	if file == nil {
+		return &RError{FCall{Rerror, open.Tag}, "No such file."}
+	}
+
+	openmode := conn.GetFidOpenmode(open.Fid)
+
+	if openmode != None {
+		return &RError{FCall{Rerror, open.Tag}, "Fid already open."}
+	}
+	// TODO: check permissions
+	// if(!fs.permission(...)) { ... }
+
+	conn.SetFidOpenmode(open.Fid, open.Mode)
+	
+	if file.stat.Mode & (1 << 31) != 0 {
+		// This is a directory.
+		conn.SetFidOpenoffset(open.Fid, file.stat.Length)
+	}
+
+	return &ROpen{FCall{Ropen, open.Tag}, file.stat.Qid, iounit}
+}	
 
 type ROpen struct {
 	FCall

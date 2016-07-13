@@ -1,6 +1,8 @@
 package fcall
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type TWalk struct {
 	FCall
@@ -59,6 +61,34 @@ func (walk *TWalk) Compose() []byte {
 	return buff
 }
 
+func (walk *TWalk) Reply(fs Filesystem, conn Connection) IFCall {
+	file := fs.FileForPath(conn.PathForFid(walk.Fid))
+	if file == nil {
+		return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
+		//return &RError{FCall{walk.Ctype, walk.Tag}, "No such file."}
+	}
+
+	qids := make([]Qid, 0)
+//	currfile := file
+//	for currfile != nil {
+//		qids = append(qids, currfile.stat.Qid)
+//		currfile = currfile.parent
+	//	}
+	path := file.path
+	for i := 0; i < int(walk.Nwname); i++ {
+		path += walk.Wname[i]
+		currfile := fs.FileForPath(path)
+		if currfile == nil {
+			//return &RError{FCall{walk.Ctype, walk.Tag}, "No such path."}
+			return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
+		}
+
+		qids = append(qids, currfile.stat.Qid)
+	}
+	conn.SetFidPath(walk.Newfid, path)
+	return &RWalk{FCall{Rwalk, walk.Tag}, uint16(len(qids)), qids}
+}
+
 type RWalk struct {
 	FCall
 	Nwqid uint16
@@ -99,14 +129,24 @@ func (walk *RWalk) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
+	fmt.Printf("Writing size: %d, type: %d, Tag: %d, Nwqid: %d, ",
+		length, walk.Ctype, walk.Tag, walk.Nwqid)
+	
 	buffer = ToLittleE32(uint32(length), buffer)
 	buffer[0] = walk.Ctype; buffer = buffer[1:]
 	buffer = ToLittleE16(walk.Tag, buffer)
 	buffer = ToLittleE16(walk.Nwqid, buffer)
 	for _, qid := range walk.Wqid {
+		fmt.Printf("qid: %s", qid)
 		qidbuff := qid.Compose()
 		copy(buffer, qidbuff)
 		buffer = buffer[len(qidbuff):]
 	}
+	fmt.Println("")
+	
 	return buff
+}
+
+func (walk *RWalk) Reply(fs Filesystem, conn Connection) IFCall {
+	return nil
 }

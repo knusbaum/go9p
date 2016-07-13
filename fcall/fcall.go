@@ -41,6 +41,7 @@ type IFCall interface {
 	Parse([]byte) ([]byte, error)
 	Compose() []byte
 	GetFCall() *FCall
+	Reply(Filesystem, Connection) IFCall
 }
 
 type FCall struct {
@@ -56,44 +57,16 @@ func (fc *FCall) GetFCall() *FCall {
 	return fc
 }
 
+func (fc *FCall) Reply(fs Filesystem, conn Connection) IFCall {
+	return nil
+}
+
 func fcParse(fc *FCall, buff []byte) ([]byte, error) {
 	if len(buff) < 2 {
 		return nil, &ParseError{fmt.Sprintf("expected 2 bytes. got: %d", len(buff))}
 	}
 	fc.Tag, buff = FromLittleE16(buff)
 	return buff, nil
-}
-
-type Qid struct {
-	Qtype uint8
-	Vers uint32
-	Uid uint64
-}
-
-func (qid *Qid) String() string {
-	return fmt.Sprintf("qtype: %d, version: %d, uid: %d",
-		qid.Qtype, qid.Vers, qid.Uid)
-}
-
-func (qid *Qid) Parse(buff []byte) ([]byte, error) {
-	if len(buff) == 0 {
-		return nil, &ParseError{"can't parse. Reached end of buffer."}
-	}
-	qid.Qtype = buff[0]
-	qid.Vers, buff = FromLittleE32(buff[1:])
-	qid.Uid, buff = FromLittleE64(buff)
-	return buff, nil
-}
-
-func (qid *Qid) Compose() []byte {
-	buff := make([]byte, 13)
-	buffer := buff
-
-	buffer[0] = qid.Qtype; buffer = buffer[1:]
-	buffer = ToLittleE32(qid.Vers, buffer)
-	buffer = ToLittleE64(qid.Uid, buffer)
-
-	return buff
 }
 
 func ParseCall(r io.Reader) (IFCall, error) {
@@ -143,68 +116,70 @@ func ParseCall(r io.Reader) (IFCall, error) {
 	case Rerror:
 		call = &RError{}
 		break
-	case Tflush:
-		call = &TFlush{}
-		break
-	case Rflush:
-		call = &RFlush{}
-		break
+//	case Tflush:
+//		call = &TFlush{}
+//		break
+//	case Rflush:
+//		call = &RFlush{}
+//		break
 	case Twalk:
 		call = &TWalk{}
 		break
-	case Rwalk:
-		call = &RWalk{}
-		break
+//	case Rwalk:
+//		call = &RWalk{}
+//		break
 	case Topen:
 		call = &TOpen{}
 		break
-	case Ropen:
-		call = &ROpen{}
-		break
+//	case Ropen:
+//		call = &ROpen{}
+//		break
 	case Tcreate:
 		call = &TCreate{}
 		break
-	case Rcreate:
-		call = &RCreate{}
-		break
+//	case Rcreate:
+//		call = &RCreate{}
+//		break
 	case Tread:
 		call = &TRead{}
 		break
-	case Rread:
-		call = &RRead{}
-		break
-	case Twrite:
-		call = &TWrite{}
-		break
-	case Rwrite:
-		call = &RWrite{}
-		break
+//	case Rread:
+//		call = &RRead{}
+//		break
+//	case Twrite:
+//		call = &TWrite{}
+//		break
+//	case Rwrite:
+//		call = &RWrite{}
+//		break
 	case Tclunk:
 		call = &TClunk{}
 		break
-	case Rclunk:
-		call = &RClunk{}
-		break
+//	case Rclunk:
+//		call = &RClunk{}
+//		break
 	case Tremove:
 		call = &TRemove{}
 		break
-	case Rremove:
-		call = &RRemove{}
-		break
-	case Tstat:
-		call = &TStat{}
-		break
-	case Rstat:
-		call = &RStat{}
-		break
-	case Twstat:
-		call = &TWstat{}
-		break
-	case Rwstat:
-		call = &RWstat{}
-		break
+//	case Rremove:
+//		call = &RRemove{}
+//		break
+//	case Tstat:
+//		call = &TStat{}
+//		break
+//	case Rstat:
+//		call = &RStat{}
+//		break
+//	case Twstat:
+//		call = &TWstat{}
+//		break
+//	case Rwstat:
+//		call = &RWstat{}
+//		break
 	default:
-		fmt.Println("No such case.")
+		tag, _ := FromLittleE16(buff)
+		return &RError{FCall{Rerror, tag}, "Not Implemented."},
+		&ParseError{fmt.Sprintf("Not implemented: %d", ctype)}
 	}
 
 	call.Parse(buff)

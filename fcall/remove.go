@@ -34,6 +34,19 @@ func (remove *TRemove) Compose() []byte {
 	return buff
 }
 
+func (remove *TRemove) Reply(fs Filesystem, conn Connection) IFCall {
+	file := fs.FileForPath(conn.PathForFid(remove.Fid))
+	if file == nil {
+		return &RError{FCall{Rerror, remove.Tag}, "No such file."}
+	}
+
+	// TODO: check permissions
+	// if(!fs.permission(...)) { ... }
+	fs.RemoveFile(file)
+
+	return &RRemove{FCall{Rremove, remove.Tag}}
+}
+
 type RRemove struct {
 	FCall
 }

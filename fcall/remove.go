@@ -44,6 +44,8 @@ func (remove *TRemove) Reply(fs Filesystem, conn Connection) IFCall {
 	// if(!fs.permission(...)) { ... }
 	fs.RemoveFile(file)
 
+	fs.DumpFiles()
+
 	return &RRemove{FCall{Rremove, remove.Tag}}
 }
 

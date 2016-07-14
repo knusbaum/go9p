@@ -58,12 +58,9 @@ func (read *TRead) Reply(fs Filesystem, conn Connection) IFCall {
 	}
 
 	if file.stat.Mode & (1<<31) != 0 {
-		fmt.Println("Writing a directory.")
-
 		contents := make([]byte, 0)
 		for _, f := range file.subfiles {
 			contents = append(contents, f.stat.Compose()...)
-			fmt.Println("Writing stat: ", &f.stat)
 		}
 
 		var count uint64 = 0
@@ -73,9 +70,6 @@ func (read *TRead) Reply(fs Filesystem, conn Connection) IFCall {
 			count = uint64(read.Count)
 		}
 
-		fmt.Printf("Contents is: %d, reading from: %d, bytes: %d\n",
-			len(contents), read.Offset, count)
-
 		data := make([]byte, count)
 		if count > 0 {
 			copy(data, contents[read.Offset:count])
@@ -84,16 +78,15 @@ func (read *TRead) Reply(fs Filesystem, conn Connection) IFCall {
 		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
 	} else {
 		var count uint64 = 0
-		if read.Offset + uint64(read.Count) > uint64(13) {
-			count = uint64(13) - read.Offset
+		if read.Offset + uint64(read.Count) > uint64(file.stat.Length) {
+			count = uint64(file.stat.Length) - read.Offset
 		} else {
 			count = uint64(read.Count)
 		}
-		content := []byte("Hello, World\n")
 
 		data := make([]byte, count)
 		if count > 0 {
-			copy(data, content[read.Offset:count])
+			copy(data, file.Contents[read.Offset:read.Offset+count])
 		}
 		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
 	}

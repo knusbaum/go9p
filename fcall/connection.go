@@ -2,6 +2,7 @@ package fcall
 
 import (
 	"net"
+	"fmt"
 )
 
 const (
@@ -18,21 +19,28 @@ type FidInfo struct {
 	openOffset uint64
 }
 
+func (info *FidInfo) String() string {
+	return fmt.Sprintf("[path: %s, openMode: %d, openOffset: %d]",
+		info.path, info.openMode, info.openOffset)
+}
+
 type Connection struct {
 	Conn net.Conn
 	fids map[uint32]*FidInfo
 	uname string
 }
 
-func (conn *Connection) GetFidOpenmode(fid uint32) uint8 {	
+func (conn *Connection) GetFidOpenmode(fid uint32) uint8 {
 	// This can blow up, but if it does, the code is wrong.
 	// Only call this method on valid fids.
 	info := conn.fids[fid]
-	return info.openMode 
+	return info.openMode
 }
 
 func(conn *Connection) SetFidOpenmode(fid uint32, openmode uint8) {
+	fmt.Printf("Setting openmode to: %d for fid: %d\n", openmode, fid)
 	info := conn.fids[fid]
+	fmt.Printf("Info is: %s\n", info)
 	if info != nil {
 		info.openMode = openmode
 	}
@@ -59,6 +67,7 @@ func (conn *Connection) PathForFid(fid uint32) string {
 }
 
 func (conn *Connection) SetFidPath(fid uint32, path string) {
+	fmt.Printf("Setting path to: [%s] for fid: %d\n", path, fid)
 	if conn.fids == nil {
 		conn.fids = make(map[uint32]*FidInfo, 1)
 	}

@@ -60,7 +60,7 @@ func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
 		mode |= (1<<i)
 	}
 	mode = mode ^ (1<<1); // o-w
-	
+
 	// TODO: Probably some permissions stuff.
 
 	path := ""
@@ -69,7 +69,7 @@ func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
 	} else {
 		path = file.path + "/" + create.Name
 	}
-	
+
 	newfile :=
 		fs.AddFile(path,
 		Stat{
@@ -79,20 +79,22 @@ func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
 			Mode: mode,
 			Atime: uint32(time.Now().Unix()),
 			Mtime: uint32(time.Now().Unix()),
-		    Length: 13,
+			Length: 0,
 			Name: create.Name,
 			Uid: "root",
 			Gid: "root",
 			Muid: "root"},
 		file)
 
-	
+	conn.SetFidPath(create.Fid, path)
+	conn.SetFidOpenmode(create.Fid, Ordwr)
+
 	return &RCreate{FCall{Rcreate, create.Tag}, newfile.stat.Qid, iounit}
 }
 
 type RCreate struct {
 	FCall
-	Qid Qid 
+	Qid Qid
 	Iounit uint32
 }
 

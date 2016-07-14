@@ -9,11 +9,20 @@ type File struct {
 	stat Stat
 	subfiles []*File
 	parent *File
+
+	Contents []byte
 }
 
 type Filesystem struct {
 	files map[string]*File /* path -> *File */
 	currUid uint64
+}
+
+func (fs *Filesystem) DumpFiles() {
+	for k, v := range fs.files {
+		fmt.Println("Path: %s, File.path: %s, len(Contents): %d, cap(Contents): %d\n",
+			k, v.path, len(v.Contents), cap(v.Contents))
+	}
 }
 
 func InitializeFs() Filesystem {
@@ -33,7 +42,7 @@ func (fs *Filesystem) AllocQid(qtype uint8) Qid {
 
 func (fs *Filesystem) AddFile(path string, stat Stat, parent *File) *File {
 	fmt.Println("Adding file.")
-	file := &File{path, stat, make([]*File, 0), parent}
+	file := &File{path, stat, make([]*File, 0), parent, make([]byte, 0)}
 	fs.files[path] = file
 	if parent != nil {
 		parent.subfiles = append(parent.subfiles, file)

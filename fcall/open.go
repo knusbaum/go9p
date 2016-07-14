@@ -59,14 +59,24 @@ func (open *TOpen) Reply(fs Filesystem, conn Connection) IFCall {
 	// if(!fs.permission(...)) { ... }
 
 	conn.SetFidOpenmode(open.Fid, open.Mode)
-	
+
 	if file.stat.Mode & (1 << 31) != 0 {
 		// This is a directory.
 		conn.SetFidOpenoffset(open.Fid, file.stat.Length)
 	}
 
+	if open.Mode == Oread {
+		fmt.Printf("!!!!Opening %s for read.\n", file.stat.Name)
+	} else if open.Mode == Owrite {
+		fmt.Printf("!!!!Opening %s for write.\n", file.stat.Name)
+	} else if open.Mode == Ordwr {
+		fmt.Printf("!!!!Opening %s for reading and writing.\n", file.stat.Name)
+	} else {
+		fmt.Printf("Open mode is : %d\n", open.Mode)
+	}
+
 	return &ROpen{FCall{Ropen, open.Tag}, file.stat.Qid, iounit}
-}	
+}
 
 type ROpen struct {
 	FCall

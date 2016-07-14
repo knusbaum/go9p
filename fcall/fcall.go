@@ -146,9 +146,9 @@ func ParseCall(r io.Reader) (IFCall, error) {
 //	case Rread:
 //		call = &RRead{}
 //		break
-//	case Twrite:
-//		call = &TWrite{}
-//		break
+	case Twrite:
+		call = &TWrite{}
+		break
 //	case Rwrite:
 //		call = &RWrite{}
 //		break

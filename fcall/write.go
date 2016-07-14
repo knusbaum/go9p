@@ -44,6 +44,39 @@ func (write *TWrite) Compose() []byte {
 	return buff
 }
 
+func (write *TWrite) Reply(fs Filesystem, conn Connection) IFCall {
+	file := fs.FileForPath(conn.PathForFid(write.Fid))
+	if file == nil {
+		return &RError{FCall{Rerror, write.Tag}, "No such file."}
+	}
+	openmode := conn.GetFidOpenmode(write.Fid)
+
+	if (openmode & 0x0F) != Owrite &&
+		(openmode & 0x0F) != Ordwr {
+		return &RError{FCall{Rerror, write.Tag}, "File notopened for write."}
+	} else if (file.stat.Mode & (1<<31)) != 0 {
+		return &RError{FCall{Rerror, write.Tag}, "Cannot write to directory."}
+	}
+
+	offset := write.Offset
+	if openmode & 0x10 == 0 {
+		// If we're not truncating, 0 offset is from EOF.
+		foffset := conn.GetFidOpenoffset(write.Fid)
+		offset += foffset
+	}
+
+	if offset + uint64(write.Count) > file.stat.Length {
+		// Extending the file.
+		newlen := offset + uint64(write.Count)
+		file.stat.Length = newlen
+		newbuff := make([]byte, newlen - uint64(len(file.Contents)) )
+		file.Contents = append(file.Contents, newbuff...)
+	}
+
+	copy(file.Contents[offset:offset+uint64(write.Count)], write.Data)
+	return &RWrite{FCall{Rwrite, write.Tag}, write.Count}
+}
+
 type RWrite struct {
 	FCall
 	Count uint32

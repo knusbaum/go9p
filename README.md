@@ -1,6 +1,6 @@
 # go9p
 This is a golang implementation of the 9p2000 protocol.
-Provided are foremost an API to implement servers serving the protocol, but also some more primitive constructs if you'd like to dink with the protocol outside the confines of what the API provides.
+Provided is foremost an API to implement servers serving the protocol, but also some more primitive constructs if you'd like to dink with the protocol outside the confines of what the API provides.
 
 The parser and other primitive stuff can be found in fcall/. fcall/fcall.go is a good place to start.
 

@@ -69,14 +69,13 @@ func (walk *TWalk) Reply(fs Filesystem, conn Connection) IFCall {
 	}
 
 	qids := make([]Qid, 0)
-//	currfile := file
-//	for currfile != nil {
-//		qids = append(qids, currfile.stat.Qid)
-//		currfile = currfile.parent
-	//	}
 	path := file.path
 	for i := 0; i < int(walk.Nwname); i++ {
-		path += walk.Wname[i]
+		if path == "/" {
+			path += walk.Wname[i]
+		} else {
+			path += "/" + walk.Wname[i]
+		}
 		currfile := fs.FileForPath(path)
 		if currfile == nil {
 			//return &RError{FCall{walk.Ctype, walk.Tag}, "No such path."}

@@ -14,7 +14,7 @@ type TCreate struct {
 }
 
 func (create *TCreate) String() string {
-	return fmt.Sprintf("tcreate: [%s, fid: %d, name: %s, perm: %d, mode: %d]",
+	return fmt.Sprintf("tcreate: [%s, fid: %d, name: %s, perm: %o, mode: %d]",
 		&create.FCall, create.Fid, create.Name, create.Perm, create.Mode)
 }
 
@@ -54,13 +54,6 @@ func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
 		return &RError{FCall{Rerror, create.Tag}, "No such file."}
 	}
 
-	var mode uint32
-	var i uint32
-	for i = 0; i < 9; i++ {
-		mode |= (1<<i)
-	}
-	mode = mode ^ (1<<1); // o-w
-
 	// TODO: Probably some permissions stuff.
 
 	path := ""
@@ -75,8 +68,8 @@ func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
 		Stat{
 			Stype: 0,
 			Dev: 0,
-			Qid: fs.AllocQid(0),
-			Mode: mode,
+			Qid: fs.AllocQid(uint8(create.Perm >> 24)),
+			Mode: create.Perm,
 			Atime: uint32(time.Now().Unix()),
 			Mtime: uint32(time.Now().Unix()),
 			Length: 0,

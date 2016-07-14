@@ -58,6 +58,7 @@ func (read *TRead) Reply(fs Filesystem, conn Connection) IFCall {
 	}
 
 	if file.stat.Mode & (1<<31) != 0 {
+		// It's a directory!
 		contents := make([]byte, 0)
 		for _, f := range file.subfiles {
 			contents = append(contents, f.stat.Compose()...)

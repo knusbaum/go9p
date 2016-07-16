@@ -39,9 +39,10 @@ func (remove *TRemove) Reply(fs Filesystem, conn Connection) IFCall {
 	if file == nil {
 		return &RError{FCall{Rerror, remove.Tag}, "No such file."}
 	}
+	if(!OpenPermission(conn.uname, file, Owrite)) {
+		return &RError{FCall{Rerror, remove.Tag}, "Permission denied."}
+	}
 
-	// TODO: check permissions
-	// if(!fs.permission(...)) { ... }
 	fs.RemoveFile(file)
 
 	fs.DumpFiles()

@@ -58,8 +58,6 @@ func (open *TOpen) Reply(fs Filesystem, conn Connection) IFCall {
 	if(!OpenPermission(conn.uname, file, open.Mode & 0x0F)) {
 		return &RError{FCall{Rerror, open.Tag}, "Permission denied."}
 	}
-	// TODO: check permissions
-	// if(!fs.permission(...)) { ... }
 
 	conn.SetFidOpenmode(open.Fid, open.Mode)
 

@@ -54,7 +54,9 @@ func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
 		return &RError{FCall{Rerror, create.Tag}, "No such file."}
 	}
 
-	// TODO: Probably some permissions stuff.
+	if(!OpenPermission(conn.uname, file, Owrite)) {
+		return &RError{FCall{Rerror, create.Tag}, "Permission denied."}
+	}
 
 	path := ""
 	if file.path == "/" {
@@ -74,9 +76,9 @@ func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
 			Mtime: uint32(time.Now().Unix()),
 			Length: 0,
 			Name: create.Name,
-			Uid: "root",
-			Gid: "root",
-			Muid: "root"},
+			Uid: conn.uname,
+			Gid: file.stat.Gid,
+			Muid: conn.uname},
 		file)
 
 	conn.SetFidPath(create.Fid, path)

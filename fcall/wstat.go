@@ -94,12 +94,11 @@ func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection) IFCall {
 	stat = &file.stat
 	newstat = &wstat.Stat
 
-	// Need to implement a whole bunch of complicated rules.
-	// See: http://knusbaum.inlisp.org/res/rfc9p2000.html
-
 	relation := UserRelation(conn.uname, file)
 
 	{
+		// Need to check all this stuff before we change *ANYTHING*
+		// The server needs to accept ALL the changes or none of them.
 		if len(newstat.Name) != 0 {
 			if relation != ugo_user {
 				fmt.Println("Can't change name. Not owner.")
@@ -137,6 +136,7 @@ func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection) IFCall {
 		}
 	}
 
+	// Do the changes.
 	if len(newstat.Name) != 0 {
 		stat.Name = newstat.Name
 	}

@@ -47,7 +47,7 @@ func (attach *TAttach) Compose() []byte {
 	return buff
 }
 
-func (attach *TAttach) Reply(filesystem Filesystem, conn Connection) IFCall {
+func (attach *TAttach) Reply(filesystem *Filesystem, conn *Connection) IFCall {
 	conn.SetUname(attach.Uname)
 	conn.SetFidPath(attach.Fid, "/")
 	reply := RAttach{
@@ -93,8 +93,4 @@ func (attach *RAttach) Compose() []byte {
 	qidbuff := attach.Qid.Compose()
 	copy(buffer, qidbuff)
 	return buff
-}
-
-func (attach *RAttach) Reply(filesystem Filesystem, conn Connection) IFCall {
-	return nil
 }

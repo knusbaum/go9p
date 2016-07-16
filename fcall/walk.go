@@ -61,7 +61,7 @@ func (walk *TWalk) Compose() []byte {
 	return buff
 }
 
-func (walk *TWalk) Reply(fs Filesystem, conn Connection) IFCall {
+func (walk *TWalk) Reply(fs *Filesystem, conn *Connection) IFCall {
 	file := fs.FileForPath(conn.PathForFid(walk.Fid))
 	if file == nil {
 		return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
@@ -128,24 +128,15 @@ func (walk *RWalk) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	fmt.Printf("Writing size: %d, type: %d, Tag: %d, Nwqid: %d, ",
-		length, walk.Ctype, walk.Tag, walk.Nwqid)
-	
 	buffer = ToLittleE32(uint32(length), buffer)
 	buffer[0] = walk.Ctype; buffer = buffer[1:]
 	buffer = ToLittleE16(walk.Tag, buffer)
 	buffer = ToLittleE16(walk.Nwqid, buffer)
 	for _, qid := range walk.Wqid {
-		fmt.Printf("qid: %s", qid)
 		qidbuff := qid.Compose()
 		copy(buffer, qidbuff)
 		buffer = buffer[len(qidbuff):]
 	}
-	fmt.Println("")
 	
 	return buff
-}
-
-func (walk *RWalk) Reply(fs Filesystem, conn Connection) IFCall {
-	return nil
 }

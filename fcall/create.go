@@ -48,7 +48,7 @@ func (create *TCreate) Compose() []byte {
 	return buff
 }
 
-func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
+func (create *TCreate) Reply(fs *Filesystem, conn *Connection) IFCall {
 	file := fs.FileForPath(conn.PathForFid(create.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, create.Tag}, "No such file."}
@@ -83,6 +83,8 @@ func (create *TCreate) Reply(fs Filesystem, conn Connection) IFCall {
 
 	conn.SetFidPath(create.Fid, path)
 	conn.SetFidOpenmode(create.Fid, Ordwr)
+
+	fmt.Println("currUid: ", fs.currUid)
 
 	return &RCreate{FCall{Rcreate, create.Tag}, newfile.stat.Qid, iounit}
 }

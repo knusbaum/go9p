@@ -4,38 +4,6 @@ import (
 	"fmt"
 )
 
-//type Qid struct {
-//	Qtype uint8
-//	Vers uint32
-//	Uid uint64
-//}
-//
-//func (qid *Qid) String() string {
-//	return fmt.Sprintf("qtype: %d, version: %d, uid: %d",
-//		qid.Qtype, qid.Vers, qid.Uid)
-//}
-//
-//func (qid *Qid) Parse(buff []byte) ([]byte, error) {
-//	if len(buff) == 0 {
-//		return nil, &ParseError{"can't parse. Reached end of buffer."}
-//	}
-//	qid.Qtype = buff[0]
-//	qid.Vers, buff = FromLittleE32(buff[1:])
-//	qid.Uid, buff = FromLittleE64(buff)
-//	return buff, nil
-//}
-//
-//func (qid *Qid) Compose() []byte {
-//	buff := make([]byte, 13)
-//	buffer := buff
-//
-//	buffer[0] = qid.Qtype; buffer = buffer[1:]
-//	buffer = ToLittleE32(qid.Vers, buffer)
-//	buffer = ToLittleE64(qid.Uid, buffer)
-//
-//	return buff
-//}
-
 type TStat struct {
 	FCall
 	Fid uint32
@@ -69,7 +37,7 @@ func (stat *TStat) Compose() []byte {
 	return buff
 }
 
-func (stat *TStat) Reply(fs Filesystem, conn Connection) IFCall {
+func (stat *TStat) Reply(fs *Filesystem, conn *Connection) IFCall {
 	file := fs.FileForPath(conn.PathForFid(stat.Fid))
 	if file == nil {
 		return &RError{FCall{Rstat, stat.Tag}, "No such file."}
@@ -186,8 +154,4 @@ func (stat *RStat) Compose() []byte {
 	copy(buffer, stat.Stat.Compose())
 	
 	return buff
-}
-
-func (stat *RStat) Reply(fs Filesystem, conn Connection) IFCall {
-	return nil
 }

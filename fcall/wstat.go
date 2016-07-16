@@ -2,6 +2,7 @@ package fcall
 
 import (
 	"fmt"
+	"math"
 )
 
 type TWstat struct {
@@ -45,7 +46,44 @@ func (wstat *TWstat) Compose() []byte {
 	return buff
 }
 
-func (wstat *TWstat) Reply(fs Filesystem, conn Connection) IFCall {
+/* The name can be changed by anyone with write permission in
+ * the parent directory; it is an error to change the name to
+ * that of an existing file.
+ *
+ * The length can be changed (affecting the actual length of
+ * the file) by anyone with write permission on the file. It
+ * is an error to attempt to set the length of a directory to
+ * a non-zero value, and servers may decide to reject length
+ * changes for other reasons.
+ *
+ * The mode and mtime can be changed by the owner of the file
+ * or the group leader of the file's current group.
+ *
+ * The directory bit cannot be changed by a wstat;
+ *
+ * the other defined permission and mode bits can.
+ *
+ * The gid can be changed: by the owner if also a member of
+ * the new group; or by the group leader of the file's current
+ * group if also leader of the new group (see intro(5) for
+ * more information about permissions and users(6) for users
+ * and groups)
+ */
+
+/* A wstat request can avoid modifying some properties of the
+ * file by providing explicit ``don't touch'' values in the
+ * stat data that is sent: zero-length strings for text
+ * values and the maximum unsigned value of appropriate size
+ * for inte- gral values. As a special case, if all the
+ * elements of the directory entry in a Twstat message are
+ * ``don't touch'' val- ues, the server may interpret it as a
+ * request to guarantee that the contents of the associated
+ * file are committed to stable storage before the Rwstat
+ * message is returned. (Con- sider the message to mean,
+ * ``make the state of the file exactly what it claims to be.'')
+ */
+
+func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection) IFCall {
 	file := fs.FileForPath(conn.PathForFid(wstat.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, wstat.Tag}, "No such file."}
@@ -59,24 +97,60 @@ func (wstat *TWstat) Reply(fs Filesystem, conn Connection) IFCall {
 	// Need to implement a whole bunch of complicated rules.
 	// See: http://knusbaum.inlisp.org/res/rfc9p2000.html
 
+	relation := UserRelation(conn.uname, file)
+
+	{
+		if len(newstat.Name) != 0 {
+			if relation != ugo_user {
+				fmt.Println("Can't change name. Not owner.")
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
+			}
+		}
+
+		if newstat.Length != math.MaxUint64 {
+			if !OpenPermission(conn.uname, file, Owrite) {
+				fmt.Println("Can't alter length. Don't have write permission.")
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
+			}
+		}
+
+		if newstat.Mode != math.MaxUint32 {
+			if relation != ugo_user {
+				fmt.Println("Can't alter mode. Not owner.")
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
+			}
+		}
+
+		if newstat.Mtime != math.MaxUint32 {
+			if relation != ugo_user {
+				fmt.Println("Can't alter mtime. Not owner.")
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
+			}
+		}
+
+		if len(newstat.Gid) != 0 {
+			if file.stat.Uid != conn.uname ||
+				!UserInGroup(conn.uname, newstat.Gid) {
+				fmt.Println("Can't changegroup. Not owner or not member of new group.")
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
+			}
+		}
+	}
+
 	if len(newstat.Name) != 0 {
 		stat.Name = newstat.Name
 	}
 
-	var maxlen uint64
-	maxlen = ^maxlen
-	if newstat.Length != maxlen {
+	if newstat.Length != math.MaxUint64 {
 		stat.Length = newstat.Length
 	}
 
-	var max32 uint32
-	max32 = ^max32
-	if newstat.Mode != max32 {
+	if newstat.Mode != math.MaxUint32 {
 		newmode := newstat.Mode & 0x000001FF;
 		stat.Mode = (stat.Mode & ^uint32(0x1FF)) | newmode
 	}
 
-	if newstat.Mtime != max32 {
+	if newstat.Mtime != math.MaxUint32 {
 		stat.Mtime = newstat.Mtime
 	}
 
@@ -85,9 +159,6 @@ func (wstat *TWstat) Reply(fs Filesystem, conn Connection) IFCall {
 	}
 
 	return &RWstat{FCall{Rwstat, wstat.Tag}}
-//
-//
-//	return &RError{FCall{Rerror, wstat.Tag}, "Not implemented."}
 }
 
 type RWstat struct {

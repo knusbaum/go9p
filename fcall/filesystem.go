@@ -33,15 +33,14 @@ func InitializeFs() Filesystem {
 
 func (fs *Filesystem) AllocQid(qtype uint8) Qid {
 	uid := fs.currUid
-	fs.currUid += 1
+	fs.currUid = fs.currUid + 1
 	return Qid{
 		Qtype: qtype,
 		Vers: 0,
-		Uid: uid}	
+		Uid: uid}
 }
 
 func (fs *Filesystem) AddFile(path string, stat Stat, parent *File) *File {
-	fmt.Println("Adding file.")
 	file := &File{path, stat, make([]*File, 0), parent, make([]byte, 0)}
 	fs.files[path] = file
 	if parent != nil {
@@ -56,7 +55,6 @@ func (fs *Filesystem) RemoveFile(file *File) {
 		parent := file.parent
 		for i, f := range parent.subfiles {
 			if f == file {
-				fmt.Println("Found file in parent.")
 				parent.subfiles = append(parent.subfiles[:i], parent.subfiles[i+1:]...)
 			}
 		}

@@ -37,7 +37,3 @@ func (error *RError) Compose() []byte {
 
 	return buff
 }
-
-func (error *RError) Reply (filesystem Filesystem, conn Connection) IFCall {
-	return nil
-}

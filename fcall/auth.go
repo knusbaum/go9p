@@ -45,7 +45,7 @@ func (auth *TAuth) Compose() []byte {
 	return buff
 }
 
-func (auth *TAuth) Reply(filesystem Filesystem, conn Connection) IFCall {
+func (auth *TAuth) Reply(filesystem *Filesystem, conn *Connection) IFCall {
 	reply := RError{}
 	reply.Ctype = Rerror
 	reply.Tag = auth.Tag
@@ -88,8 +88,4 @@ func (auth *RAuth) Compose() []byte {
 	qidbuffer := auth.Aqid.Compose()
 	copy(buffer, qidbuffer)
 	return buff
-}
-
-func (auth *RAuth) Reply(filesystem Filesystem, conn Connection) IFCall {
-	return nil
 }

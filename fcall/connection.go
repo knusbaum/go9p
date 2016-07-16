@@ -38,9 +38,7 @@ func (conn *Connection) GetFidOpenmode(fid uint32) uint8 {
 }
 
 func(conn *Connection) SetFidOpenmode(fid uint32, openmode uint8) {
-	fmt.Printf("Setting openmode to: %d for fid: %d\n", openmode, fid)
 	info := conn.fids[fid]
-	fmt.Printf("Info is: %s\n", info)
 	if info != nil {
 		info.openMode = openmode
 	}
@@ -67,7 +65,6 @@ func (conn *Connection) PathForFid(fid uint32) string {
 }
 
 func (conn *Connection) SetFidPath(fid uint32, path string) {
-	fmt.Printf("Setting path to: [%s] for fid: %d\n", path, fid)
 	if conn.fids == nil {
 		conn.fids = make(map[uint32]*FidInfo, 1)
 	}

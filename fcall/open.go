@@ -44,7 +44,7 @@ func (open *TOpen) Compose() []byte {
 	return buff
 }
 
-func (open *TOpen) Reply(fs *Filesystem, conn *Connection) IFCall {
+func (open *TOpen) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	file := fs.FileForPath(conn.PathForFid(open.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, open.Tag}, "No such file."}
@@ -64,9 +64,16 @@ func (open *TOpen) Reply(fs *Filesystem, conn *Connection) IFCall {
 	if file.stat.Mode & (1 << 31) != 0 {
 		// This is a directory.
 		conn.SetFidOpenoffset(open.Fid, file.stat.Length)
+		return &ROpen{FCall{Ropen, open.Tag}, file.stat.Qid, iounit}
+	} else {
+		if h.Open != nil {
+			ctx := &Opencontext{conn, fs, open, file}
+			h.Open(fs, conn, ctx)
+		} else {
+			return &RError{FCall{Rerror, open.Tag}, "Open not implemented."}
+		}
+		return nil
 	}
-
-	return &ROpen{FCall{Ropen, open.Tag}, file.stat.Qid, iounit}
 }
 
 type ROpen struct {

@@ -44,7 +44,7 @@ func (write *TWrite) Compose() []byte {
 	return buff
 }
 
-func (write *TWrite) Reply(fs *Filesystem, conn *Connection) IFCall {
+func (write *TWrite) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	file := fs.FileForPath(conn.PathForFid(write.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, write.Tag}, "No such file."}

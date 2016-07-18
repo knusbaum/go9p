@@ -45,7 +45,7 @@ func (auth *TAuth) Compose() []byte {
 	return buff
 }
 
-func (auth *TAuth) Reply(filesystem *Filesystem, conn *Connection) IFCall {
+func (auth *TAuth) Reply(filesystem *Filesystem, conn *Connection, h Handler) IFCall {
 	reply := RError{}
 	reply.Ctype = Rerror
 	reply.Tag = auth.Tag

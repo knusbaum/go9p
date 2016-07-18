@@ -83,7 +83,7 @@ func (wstat *TWstat) Compose() []byte {
  * ``make the state of the file exactly what it claims to be.'')
  */
 
-func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection) IFCall {
+func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	file := fs.FileForPath(conn.PathForFid(wstat.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, wstat.Tag}, "No such file."}

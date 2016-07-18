@@ -40,7 +40,7 @@ func (read *TRead) Compose() []byte {
 	return buff
 }
 
-func (read *TRead) Reply(fs *Filesystem, conn *Connection) IFCall {
+func (read *TRead) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	if read.Count > iounit {
 		return &RError{FCall{Rerror, read.Tag}, "Read size too large."}
 	}

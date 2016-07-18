@@ -41,7 +41,7 @@ type IFCall interface {
 	Parse([]byte) ([]byte, error)
 	Compose() []byte
 	GetFCall() *FCall
-	Reply(*Filesystem, *Connection) IFCall
+	Reply(*Filesystem, *Connection, Handler) IFCall
 }
 
 type FCall struct {
@@ -57,7 +57,7 @@ func (fc *FCall) GetFCall() *FCall {
 	return fc
 }
 
-func (fc *FCall) Reply(fs *Filesystem, conn *Connection) IFCall {
+func (fc *FCall) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	return nil
 }
 

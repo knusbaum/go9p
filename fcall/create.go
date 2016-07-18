@@ -48,7 +48,7 @@ func (create *TCreate) Compose() []byte {
 	return buff
 }
 
-func (create *TCreate) Reply(fs *Filesystem, conn *Connection) IFCall {
+func (create *TCreate) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	file := fs.FileForPath(conn.PathForFid(create.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, create.Tag}, "No such file."}

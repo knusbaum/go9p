@@ -34,7 +34,7 @@ func (clunk *TClunk) Compose() []byte {
 	return buff
 }
 
-func (clunk *TClunk) Reply(fs *Filesystem, conn *Connection) IFCall {
+func (clunk *TClunk) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	delete(conn.fids, clunk.Fid)
 	return &RClunk{FCall{Rclunk, clunk.Tag}}
 }

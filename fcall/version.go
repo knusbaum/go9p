@@ -47,7 +47,7 @@ func (version *TRVersion) Compose() []byte {
 	return buff
 }
 
-func (version *TRVersion) Reply(filesystem *Filesystem, conn *Connection) IFCall {
+func (version *TRVersion) Reply(filesystem *Filesystem, conn *Connection, h Handler) IFCall {
 	var reply TRVersion = TRVersion{}
 	if version.Ctype == Tversion {
 		reply = *version

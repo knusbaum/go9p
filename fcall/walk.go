@@ -61,7 +61,7 @@ func (walk *TWalk) Compose() []byte {
 	return buff
 }
 
-func (walk *TWalk) Reply(fs *Filesystem, conn *Connection) IFCall {
+func (walk *TWalk) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	file := fs.FileForPath(conn.PathForFid(walk.Fid))
 	if file == nil {
 		return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}

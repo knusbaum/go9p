@@ -10,7 +10,8 @@ The parser and other primitive stuff can be found in fcall/. fcall/fcall.go is a
 Check out https://github.com/knusbaum/9ptest for a sample application serving a ram-backed 9P filesystem based on this library.
 
 This is distributed under the MIT license
-'''
+
+```
     Copyright (c) 2016 Kyle Nusbaum
 
 
@@ -20,4 +21,4 @@ This is distributed under the MIT license
 
     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-"""
+```

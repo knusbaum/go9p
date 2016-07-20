@@ -63,6 +63,10 @@ func (open *TOpen) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 
 	if file.stat.Mode & (1 << 31) != 0 {
 		// This is a directory.
+		if (open.Mode & 0x0F) == Owrite ||
+			(open.Mode & 0x0F) == Ordwr {
+			return &RError{FCall{Rerror, open.Tag}, "Cannot write to directory."}
+		}
 		conn.SetFidOpenoffset(open.Fid, file.stat.Length)
 		return &ROpen{FCall{Ropen, open.Tag}, file.stat.Qid, iounit}
 	} else {

@@ -2,7 +2,7 @@ package fcall
 
 import (
 	"fmt"
-	"time"
+//	"time"
 )
 
 type TCreate struct {
@@ -58,35 +58,42 @@ func (create *TCreate) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall
 		return &RError{FCall{Rerror, create.Tag}, "Permission denied."}
 	}
 
-	path := ""
-	if file.path == "/" {
-		path = file.path + create.Name
+//	path := ""
+//	if file.path == "/" {
+//		path = file.path + create.Name
+//	} else {
+//		path = file.path + "/" + create.Name
+//	}
+
+	if h.Create != nil {
+		ctx := &Createcontext{conn, fs}
+		h.Create(fs, conn, ctx)
 	} else {
-		path = file.path + "/" + create.Name
+		return &RError{FCall{Rerror, create.Tag}, "Create not implemented."}
 	}
-
-	newfile :=
-		fs.AddFile(path,
-		Stat{
-			Stype: 0,
-			Dev: 0,
-			Qid: fs.AllocQid(uint8(create.Perm >> 24)),
-			Mode: create.Perm,
-			Atime: uint32(time.Now().Unix()),
-			Mtime: uint32(time.Now().Unix()),
-			Length: 0,
-			Name: create.Name,
-			Uid: conn.uname,
-			Gid: file.stat.Gid,
-			Muid: conn.uname},
-		file)
-
-	conn.SetFidPath(create.Fid, path)
-	conn.SetFidOpenmode(create.Fid, Ordwr)
-
-	fmt.Println("currUid: ", fs.currUid)
-
-	return &RCreate{FCall{Rcreate, create.Tag}, newfile.stat.Qid, iounit}
+	return nil
+//	newfile :=
+//		fs.AddFile(path,
+//		Stat{
+//			Stype: 0,
+//			Dev: 0,
+//			Qid: fs.AllocQid(uint8(create.Perm >> 24)),
+//			Mode: create.Perm,
+//			Atime: uint32(time.Now().Unix()),
+//			Mtime: uint32(time.Now().Unix()),
+//			Length: 0,
+//			Name: create.Name,
+//			Uid: conn.uname,
+//			Gid: file.stat.Gid,
+//			Muid: conn.uname},
+//		file)
+//
+//	conn.SetFidPath(create.Fid, path)
+//	conn.SetFidOpenmode(create.Fid, Ordwr)
+//
+//	fmt.Println("currUid: ", fs.currUid)
+//
+//	return &RCreate{FCall{Rcreate, create.Tag}, newfile.stat.Qid, iounit}
 }
 
 type RCreate struct {

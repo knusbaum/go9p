@@ -58,23 +58,30 @@ func (write *TWrite) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 		return &RError{FCall{Rerror, write.Tag}, "Cannot write to directory."}
 	}
 
-	offset := write.Offset
-	if openmode & 0x10 == 0 {
-		// If we're not truncating, 0 offset is from EOF.
-		foffset := conn.GetFidOpenoffset(write.Fid)
-		offset += foffset
+	if h.Write != nil {
+		ctx := &Writecontext{conn, fs}
+		h.Write(fs, conn, ctx)
+	} else {
+		return &RError{FCall{Rerror, write.Tag}, "Write not implemented."}
 	}
-
-	if offset + uint64(write.Count) > file.stat.Length {
-		// Extending the file.
-		newlen := offset + uint64(write.Count)
-		file.stat.Length = newlen
-		newbuff := make([]byte, newlen - uint64(len(file.Contents)) )
-		file.Contents = append(file.Contents, newbuff...)
-	}
-
-	copy(file.Contents[offset:offset+uint64(write.Count)], write.Data)
-	return &RWrite{FCall{Rwrite, write.Tag}, write.Count}
+	return nil
+//	offset := write.Offset
+//	if openmode & 0x10 == 0 {
+//		// If we're not truncating, 0 offset is from EOF.
+//		foffset := conn.GetFidOpenoffset(write.Fid)
+//		offset += foffset
+//	}
+//
+//	if offset + uint64(write.Count) > file.stat.Length {
+//		// Extending the file.
+//		newlen := offset + uint64(write.Count)
+//		file.stat.Length = newlen
+//		newbuff := make([]byte, newlen - uint64(len(file.Contents)) )
+//		file.Contents = append(file.Contents, newbuff...)
+//	}
+//
+//	copy(file.Contents[offset:offset+uint64(write.Count)], write.Data)
+//	return &RWrite{FCall{Rwrite, write.Tag}, write.Count}
 }
 
 type RWrite struct {

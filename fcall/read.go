@@ -78,18 +78,25 @@ func (read *TRead) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 
 		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
 	} else {
-		var count uint64 = 0
-		if read.Offset + uint64(read.Count) > uint64(file.stat.Length) {
-			count = uint64(file.stat.Length) - read.Offset
+		if h.Read != nil {
+			ctx := &Readcontext{conn, fs}
+			h.Read(fs, conn, ctx)
 		} else {
-			count = uint64(read.Count)
+			return &RError{FCall{Rerror, read.Tag}, "Read not implemented."}
 		}
-
-		data := make([]byte, count)
-		if count > 0 {
-			copy(data, file.Contents[read.Offset:read.Offset+count])
-		}
-		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
+		return nil
+//		var count uint64 = 0
+//		if read.Offset + uint64(read.Count) > uint64(file.stat.Length) {
+//			count = uint64(file.stat.Length) - read.Offset
+//		} else {
+//			count = uint64(read.Count)
+//		}
+//
+//		data := make([]byte, count)
+//		if count > 0 {
+//			copy(data, file.Contents[read.Offset:read.Offset+count])
+//		}
+//		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
 	}
 }
 

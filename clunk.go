@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import "fmt"
 
@@ -34,7 +34,7 @@ func (clunk *TClunk) Compose() []byte {
 	return buff
 }
 
-func (clunk *TClunk) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (clunk *TClunk) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	delete(conn.fids, clunk.Fid)
 	return &RClunk{FCall{Rclunk, clunk.Tag}}
 }

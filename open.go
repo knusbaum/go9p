@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -44,7 +44,7 @@ func (open *TOpen) Compose() []byte {
 	return buff
 }
 
-func (open *TOpen) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (open *TOpen) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	file := fs.FileForPath(conn.PathForFid(open.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, open.Tag}, "No such file."}
@@ -59,20 +59,19 @@ func (open *TOpen) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 		return &RError{FCall{Rerror, open.Tag}, "Permission denied."}
 	}
 
-	conn.SetFidOpenmode(open.Fid, open.Mode)
-
-	if file.stat.Mode & (1 << 31) != 0 {
+	if file.Stat.Mode & (1 << 31) != 0 {
 		// This is a directory.
 		if (open.Mode & 0x0F) == Owrite ||
 			(open.Mode & 0x0F) == Ordwr {
 			return &RError{FCall{Rerror, open.Tag}, "Cannot write to directory."}
 		}
-		conn.SetFidOpenoffset(open.Fid, file.stat.Length)
-		return &ROpen{FCall{Ropen, open.Tag}, file.stat.Qid, iounit}
+		conn.SetFidOpenmode(open.Fid, open.Mode)
+		conn.SetFidOpenoffset(open.Fid, file.Stat.Length)
+		return &ROpen{FCall{Ropen, open.Tag}, file.Stat.Qid, iounit}
 	} else {
-		if h.Open != nil {
-			ctx := &Opencontext{conn, fs, open, file}
-			h.Open(fs, conn, ctx)
+		if s.Open != nil {
+			ctx := &Opencontext{Ctx{conn, fs, &open.FCall, open.Fid, file}, open.Mode}
+			s.Open(ctx)
 		} else {
 			return &RError{FCall{Rerror, open.Tag}, "Open not implemented."}
 		}

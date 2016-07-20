@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -83,7 +83,7 @@ func (wstat *TWstat) Compose() []byte {
  * ``make the state of the file exactly what it claims to be.'')
  */
 
-func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	file := fs.FileForPath(conn.PathForFid(wstat.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, wstat.Tag}, "No such file."}
@@ -91,7 +91,7 @@ func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 
 	var stat *Stat
 	var newstat *Stat
-	stat = &file.stat
+	stat = &file.Stat
 	newstat = &wstat.Stat
 
 	relation := UserRelation(conn.uname, file)
@@ -128,7 +128,7 @@ func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 		}
 
 		if len(newstat.Gid) != 0 {
-			if file.stat.Uid != conn.uname ||
+			if file.Stat.Uid != conn.uname ||
 				!UserInGroup(conn.uname, newstat.Gid) {
 				fmt.Println("Can't changegroup. Not owner or not member of new group.")
 				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}

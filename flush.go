@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import "fmt"
 

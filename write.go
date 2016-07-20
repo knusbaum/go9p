@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import "fmt"
 
@@ -44,7 +44,7 @@ func (write *TWrite) Compose() []byte {
 	return buff
 }
 
-func (write *TWrite) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (write *TWrite) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	file := fs.FileForPath(conn.PathForFid(write.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, write.Tag}, "No such file."}
@@ -54,13 +54,24 @@ func (write *TWrite) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	if (openmode & 0x0F) != Owrite &&
 		(openmode & 0x0F) != Ordwr {
 		return &RError{FCall{Rerror, write.Tag}, "File notopened for write."}
-	} else if (file.stat.Mode & (1<<31)) != 0 {
+	} else if (file.Stat.Mode & (1<<31)) != 0 {
 		return &RError{FCall{Rerror, write.Tag}, "Cannot write to directory."}
 	}
 
-	if h.Write != nil {
-		ctx := &Writecontext{conn, fs}
-		h.Write(fs, conn, ctx)
+	offset := write.Offset
+	if openmode & 0x10 == 0 {
+		// If we're not truncating, 0 offset is from EOF.
+		foffset := conn.GetFidOpenoffset(write.Fid)
+		offset += foffset
+	}
+	
+	if s.Write != nil {
+		ctx := &Writecontext{
+			Ctx{conn, fs, &write.FCall, write.Fid, file},
+			write.Data,
+			offset,
+			write.Count}
+		s.Write(ctx)
 	} else {
 		return &RError{FCall{Rerror, write.Tag}, "Write not implemented."}
 	}

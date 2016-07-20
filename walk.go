@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -61,7 +61,7 @@ func (walk *TWalk) Compose() []byte {
 	return buff
 }
 
-func (walk *TWalk) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (walk *TWalk) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	file := fs.FileForPath(conn.PathForFid(walk.Fid))
 	if file == nil {
 		return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
@@ -69,7 +69,7 @@ func (walk *TWalk) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 	}
 
 	qids := make([]Qid, 0)
-	path := file.path
+	path := file.Path
 	for i := 0; i < int(walk.Nwname); i++ {
 		if path == "/" {
 			path += walk.Wname[i]
@@ -82,7 +82,7 @@ func (walk *TWalk) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 			return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
 		}
 
-		qids = append(qids, currfile.stat.Qid)
+		qids = append(qids, currfile.Stat.Qid)
 	}
 	conn.SetFidPath(walk.Newfid, path)
 	return &RWalk{FCall{Rwalk, walk.Tag}, uint16(len(qids)), qids}

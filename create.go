@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -48,7 +48,7 @@ func (create *TCreate) Compose() []byte {
 	return buff
 }
 
-func (create *TCreate) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (create *TCreate) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	file := fs.FileForPath(conn.PathForFid(create.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, create.Tag}, "No such file."}
@@ -58,16 +58,21 @@ func (create *TCreate) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall
 		return &RError{FCall{Rerror, create.Tag}, "Permission denied."}
 	}
 
-//	path := ""
-//	if file.path == "/" {
-//		path = file.path + create.Name
-//	} else {
-//		path = file.path + "/" + create.Name
-//	}
+	path := ""
+	if file.Path == "/" {
+		path = file.Path + create.Name
+	} else {
+		path = file.Path + "/" + create.Name
+	}
 
-	if h.Create != nil {
-		ctx := &Createcontext{conn, fs}
-		h.Create(fs, conn, ctx)
+	if s.Create != nil {
+		ctx := &Createcontext{
+			Ctx{conn, fs, &create.FCall, create.Fid, file},
+			path,
+			create.Name,
+			create.Perm,
+			create.Mode}
+		s.Create(ctx)
 	} else {
 		return &RError{FCall{Rerror, create.Tag}, "Create not implemented."}
 	}

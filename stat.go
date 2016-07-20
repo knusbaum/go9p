@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -37,12 +37,12 @@ func (stat *TStat) Compose() []byte {
 	return buff
 }
 
-func (stat *TStat) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (stat *TStat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	file := fs.FileForPath(conn.PathForFid(stat.Fid))
 	if file == nil {
 		return &RError{FCall{Rstat, stat.Tag}, "No such file."}
 	}
-	return &RStat{FCall{Rstat, stat.Tag}, file.stat}
+	return &RStat{FCall{Rstat, stat.Tag}, file.Stat}
 }
 
 type Stat struct {

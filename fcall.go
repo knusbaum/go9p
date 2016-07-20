@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -41,7 +41,7 @@ type IFCall interface {
 	Parse([]byte) ([]byte, error)
 	Compose() []byte
 	GetFCall() *FCall
-	Reply(*Filesystem, *Connection, Handler) IFCall
+	Reply(*Filesystem, *Connection, *Server) IFCall
 }
 
 type FCall struct {
@@ -57,7 +57,7 @@ func (fc *FCall) GetFCall() *FCall {
 	return fc
 }
 
-func (fc *FCall) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (fc *FCall) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	return nil
 }
 

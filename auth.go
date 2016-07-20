@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -45,7 +45,7 @@ func (auth *TAuth) Compose() []byte {
 	return buff
 }
 
-func (auth *TAuth) Reply(filesystem *Filesystem, conn *Connection, h Handler) IFCall {
+func (auth *TAuth) Reply(filesystem *Filesystem, conn *Connection, s *Server) IFCall {
 	reply := RError{}
 	reply.Ctype = Rerror
 	reply.Tag = auth.Tag

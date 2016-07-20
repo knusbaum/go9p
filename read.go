@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import "fmt"
 
@@ -40,7 +40,7 @@ func (read *TRead) Compose() []byte {
 	return buff
 }
 
-func (read *TRead) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (read *TRead) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	if read.Count > iounit {
 		return &RError{FCall{Rerror, read.Tag}, "Read size too large."}
 	}
@@ -57,11 +57,11 @@ func (read *TRead) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 		return &RError{FCall{Rerror, read.Tag}, "File not opened."}
 	}
 
-	if file.stat.Mode & (1<<31) != 0 {
+	if file.Stat.Mode & (1<<31) != 0 {
 		// It's a directory!
 		contents := make([]byte, 0)
 		for _, f := range file.subfiles {
-			contents = append(contents, f.stat.Compose()...)
+			contents = append(contents, f.Stat.Compose()...)
 		}
 
 		var count uint64 = 0
@@ -78,16 +78,26 @@ func (read *TRead) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
 
 		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
 	} else {
-		if h.Read != nil {
-			ctx := &Readcontext{conn, fs}
-			h.Read(fs, conn, ctx)
+		var count uint64 = 0
+		if read.Offset + uint64(read.Count) > uint64(file.Stat.Length) {
+			count = uint64(file.Stat.Length) - read.Offset
+		} else {
+			count = uint64(read.Count)
+		}
+		
+		if s.Read != nil {
+			ctx := &Readcontext{
+				Ctx{conn, fs, &read.FCall, read.Fid, file},
+				read.Offset,
+				uint32(count)}
+			s.Read(ctx)
 		} else {
 			return &RError{FCall{Rerror, read.Tag}, "Read not implemented."}
 		}
 		return nil
 //		var count uint64 = 0
-//		if read.Offset + uint64(read.Count) > uint64(file.stat.Length) {
-//			count = uint64(file.stat.Length) - read.Offset
+//		if read.Offset + uint64(read.Count) > uint64(file.Stat.Length) {
+//			count = uint64(file.Stat.Length) - read.Offset
 //		} else {
 //			count = uint64(read.Count)
 //		}

@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 const (
 	ugo_user = iota
@@ -12,10 +12,10 @@ func UserInGroup(user string, group string) bool {
 }
 
 func UserRelation(user string, file *File) uint8 {
-	if user == file.stat.Uid {
+	if user == file.Stat.Uid {
 		return ugo_user
 	}
-	if UserInGroup(user, file.stat.Gid) {
+	if UserInGroup(user, file.Stat.Gid) {
 		return ugo_group
 	}
 	return ugo_other
@@ -48,13 +48,13 @@ func OmodePermits(perm uint8, omode uint8) bool {
 func OpenPermission(user string, file *File, omode uint8) bool {
 	switch(UserRelation(user, file)) {
 	case ugo_user:
-		return OmodePermits(uint8(file.stat.Mode >> 6) & 0x07, omode)
+		return OmodePermits(uint8(file.Stat.Mode >> 6) & 0x07, omode)
 		break
 	case ugo_group:
-		return OmodePermits(uint8(file.stat.Mode >> 3) & 0x07, omode)
+		return OmodePermits(uint8(file.Stat.Mode >> 3) & 0x07, omode)
 		break
 	case ugo_other:
-		return OmodePermits(uint8(file.stat.Mode) & 0x07, omode)
+		return OmodePermits(uint8(file.Stat.Mode) & 0x07, omode)
 		break
 	default:
 		return false

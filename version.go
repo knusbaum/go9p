@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -47,7 +47,7 @@ func (version *TRVersion) Compose() []byte {
 	return buff
 }
 
-func (version *TRVersion) Reply(filesystem *Filesystem, conn *Connection, h Handler) IFCall {
+func (version *TRVersion) Reply(filesystem *Filesystem, conn *Connection, s *Server) IFCall {
 	var reply TRVersion = TRVersion{}
 	if version.Ctype == Tversion {
 		reply = *version

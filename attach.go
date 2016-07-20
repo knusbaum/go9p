@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
@@ -47,7 +47,7 @@ func (attach *TAttach) Compose() []byte {
 	return buff
 }
 
-func (attach *TAttach) Reply(filesystem *Filesystem, conn *Connection, h Handler) IFCall {
+func (attach *TAttach) Reply(filesystem *Filesystem, conn *Connection, s *Server) IFCall {
 	conn.SetUname(attach.Uname)
 	conn.SetFidPath(attach.Fid, "/")
 	reply := RAttach{

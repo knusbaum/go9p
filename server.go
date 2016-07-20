@@ -1,108 +1,27 @@
 package go9p
 
 import (
-	"github.com/knusbaum/go9p/fcall"
+//	"github.com/knusbaum/go9p/fcall"
 	"time"
 	"fmt"
 	"net"
 )
 
-type Srv interface {
-	Open() func(ctx Context)
-	Read() func(ctx Context)
-	Write() func(ctx Context)
-	Create() func(ctx Context)
-	Setup() func(ctx Context)
-}
-
-//type CtxFile interface {}
-
 type Context interface {
-	Respond()
-	GetFile() interface{}
-	AddFile(mode uint32, length uint64, name string, parent interface{})
+	//Respond()
+	Fail(s string)
+	AddFile(mode uint32, length uint64, name string, parent *File) *File
 }
 
-type BaseServer struct {
-	OpenFn func(ctx Context)
-	ReadFn func(ctx Context)
-	WriteFn func(ctx Context)
-	CreateFn func(ctx Context)
-	SetupFn func(ctx Context)
+type Server struct {
+	Open func(ctx *Opencontext)
+	Read func(ctx *Readcontext)
+	Write func(ctx *Writecontext)
+	Create func(ctx *Createcontext)
+	Setup func(ctx Context)
 }
 
-func (srv *BaseServer) Open() func(ctx Context) {
-	return srv.OpenFn
-}
-
-func (srv *BaseServer) Read() func(ctx Context) {
-	return srv.ReadFn
-}
-
-func (srv *BaseServer) Write() func(ctx Context) {
-	return srv.WriteFn
-}
-
-func (srv *BaseServer) Create() func(ctx Context) {
-	return srv.CreateFn
-}
-
-func (srv *BaseServer) Setup() func(ctx Context) {
-	return srv.SetupFn
-}
-
-func makeHandler(conn fcall.Connection, srv Srv) fcall.Handler {
-	var open func(fs *fcall.Filesystem, conn *fcall.Connection, ctx *fcall.Opencontext)
-	var read func(fs *fcall.Filesystem, conn *fcall.Connection, ctx *fcall.Readcontext)
-	var write func(fs *fcall.Filesystem, conn *fcall.Connection, ctx *fcall.Writecontext)
-	var create func(fs *fcall.Filesystem, conn *fcall.Connection, ctx *fcall.Createcontext)
-	var setup func(fs *fcall.Filesystem, conn *fcall.Connection)
-
-	sopen := srv.Open()
-	if sopen != nil {
-		open = 
-			func(fs *fcall.Filesystem, conn *fcall.Connection, ctx *fcall.Opencontext) {
-			sopen(ctx)
-		}
-	}
-
-	sread := srv.Read()
-	if sread != nil {
-		read = func(fs *fcall.Filesystem, conn *fcall.Connection, ctx *fcall.Readcontext) {
-			sread(ctx)
-		}
-	}
-
-	swrite := srv.Write()
-	if swrite != nil {
-		write = func(fs *fcall.Filesystem, conn *fcall.Connection, ctx *fcall.Writecontext) {
-			swrite(ctx)
-		}
-	}
-
-	screate := srv.Create()
-	if screate != nil {
-		create = func(fs *fcall.Filesystem, conn *fcall.Connection, ctx *fcall.Createcontext) {
-			screate(ctx)
-		}
-	}
-
-	ssetup := srv.Setup()
-	if ssetup != nil {
-		setup = func(fs *fcall.Filesystem, conn *fcall.Connection) {
-			ssetup(nil)
-		}
-	}
-	
-	return fcall.Handler{
-		open,
-		read,
-		write,
-		create,
-		setup}
-}
-
-func Serve(srv Srv) {
+func Serve(srv *Server) {
 	
 	var mode uint32
 	var i uint32
@@ -111,8 +30,8 @@ func Serve(srv Srv) {
 	}
 	mode = mode ^ (1<<1); // o-w
 
-	fs := fcall.InitializeFs()
-	fs.AddFile("/", fcall.Stat{
+	fs := InitializeFs()
+	fs.AddFile("/", Stat{
 		Stype: 0,
 		Dev: 0,
 		Qid: fs.AllocQid(1 << 7),
@@ -133,8 +52,8 @@ func Serve(srv Srv) {
 	}
 
 	for {
-		go9conn := fcall.Connection{}
-		h := makeHandler(go9conn, srv)
+		go9conn := Connection{}
+		//h := makeHandler(go9conn, srv)
 		err := go9conn.Accept(listener)
 
 		if err != nil {
@@ -142,7 +61,7 @@ func Serve(srv Srv) {
 			return
 		}
 		for {
-			fc, err := fcall.ParseCall(go9conn.Conn)
+			fc, err := ParseCall(go9conn.Conn)
 			if err != nil {
 				fmt.Println("Failed to parse call: ", err)
 				if fc != nil {
@@ -153,11 +72,129 @@ func Serve(srv Srv) {
 			}
 			
 			fmt.Println(">>> ", fc)
-			reply := fc.Reply(&fs, &go9conn, h)
+			reply := fc.Reply(&fs, &go9conn, srv)
 			if reply != nil {
 				fmt.Println("<<< ", reply)
 				go9conn.Conn.Write(reply.Compose())
 			}
 		}
 	}
+}
+
+
+
+/* FCALL SERVER.GO */
+type Ctx struct {
+	conn *Connection
+	fs *Filesystem
+	call *FCall
+	Fid uint32
+	File *File
+}
+
+func (ctx *Ctx) Fail(s string) {
+	response := &RError{FCall{Rerror, ctx.call.Tag}, s}
+	fmt.Println("<<< ", response)
+	ctx.conn.Conn.Write(response.Compose())
+}
+
+func (ctx *Ctx) AddFile(mode uint32, length uint64, name string, parent *File) *File{
+	if parent == nil {
+		return nil
+	}
+	path := ""
+	if parent.Path == "/" {
+		path = parent.Path + name
+	} else {
+		path = parent.Path + "/" + name
+	}
+	var qidtype uint8
+	if mode & (1 << 31) != 0 {
+		// It's a directory.
+		qidtype = (1 << 7)
+	}
+	return ctx.fs.AddFile(path,
+		Stat{
+			Stype: 0,
+			Dev: 0,
+			Qid: ctx.fs.AllocQid(qidtype),
+			Mode: mode,
+			Atime: uint32(time.Now().Unix()),
+			Mtime: uint32(time.Now().Unix()),
+			Length: length,
+			Name: name,
+			Uid: ctx.conn.uname,
+			Gid: parent.Stat.Gid,
+			Muid: ctx.conn.uname},
+		parent)
+}
+
+type Opencontext struct {
+	Ctx
+	Mode uint8
+}
+
+func (ctx *Opencontext) Respond() {
+	ctx.conn.SetFidOpenmode(ctx.Fid, ctx.Mode)
+	response := &ROpen{FCall{Ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
+	fmt.Println("<<< ", response)
+	ctx.conn.Conn.Write(response.Compose())
+}
+
+
+type Readcontext struct {
+	Ctx
+	Offset uint64
+	Count uint32
+}
+
+func (ctx *Readcontext) Respond(data []byte) {
+	response := &RRead{FCall{Rread, ctx.call.Tag}, uint32(len(data)), data}
+	fmt.Println("<<< ", response)
+	ctx.conn.Conn.Write(response.Compose())
+}
+
+type Writecontext struct {
+	Ctx
+	Data []byte
+	Offset uint64
+	Count uint32
+}
+
+func (ctx *Writecontext) Respond(count uint32) {
+	response := &RWrite{FCall{Rwrite, ctx.call.Tag}, count}
+	fmt.Println("<<< ", response)
+	ctx.conn.Conn.Write(response.Compose())
+}
+
+type Createcontext struct {
+	Ctx
+	NewPath string
+	Name string
+	Perm uint32
+	Mode uint8
+}
+
+func (ctx *Createcontext) Respond(length uint64) {
+	newfile :=
+		ctx.fs.AddFile(ctx.NewPath,
+		Stat{
+			Stype: 0,
+			Dev: 0,
+			Qid: ctx.fs.AllocQid(uint8(ctx.Perm >> 24)),
+			Mode: ctx.Perm,
+			Atime: uint32(time.Now().Unix()),
+			Mtime: uint32(time.Now().Unix()),
+			Length: length,
+			Name: ctx.Name,
+			Uid: ctx.conn.uname,
+			Gid: ctx.File.Stat.Gid,
+			Muid: ctx.conn.uname},
+		ctx.File)
+	ctx.conn.SetFidPath(ctx.Fid, ctx.NewPath)
+	ctx.conn.SetFidOpenmode(ctx.Fid, Ordwr)
+
+	response := &RCreate{FCall{Rcreate, ctx.call.Tag}, newfile.Stat.Qid, iounit}
+	fmt.Println("<<< ", response)
+	ctx.conn.Conn.Write(response.Compose())
 }

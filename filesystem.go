@@ -1,14 +1,14 @@
-package fcall
+package go9p
 
 import (
 	"fmt"
 )
 
 type File struct {
-	path string
-	stat Stat
+	Path string
+	Stat Stat
 	subfiles []*File
-	parent *File
+	Parent *File
 
 	Contents []byte
 }
@@ -21,7 +21,7 @@ type Filesystem struct {
 func (fs *Filesystem) DumpFiles() {
 	for k, v := range fs.files {
 		fmt.Println("Path: %s, File.path: %s, len(Contents): %d, cap(Contents): %d\n",
-			k, v.path, len(v.Contents), cap(v.Contents))
+			k, v.Path, len(v.Contents), cap(v.Contents))
 	}
 }
 
@@ -50,9 +50,9 @@ func (fs *Filesystem) AddFile(path string, stat Stat, parent *File) *File {
 }
 
 func (fs *Filesystem) RemoveFile(file *File) {
-	if file.parent != nil {
+	if file.Parent != nil {
 		// Need to remove this file from its parent's list.
-		parent := file.parent
+		parent := file.Parent
 		for i, f := range parent.subfiles {
 			if f == file {
 				parent.subfiles = append(parent.subfiles[:i], parent.subfiles[i+1:]...)
@@ -60,7 +60,7 @@ func (fs *Filesystem) RemoveFile(file *File) {
 		}
 	}
 
-	delete(fs.files, file.path)
+	delete(fs.files, file.Path)
 	
 }
 

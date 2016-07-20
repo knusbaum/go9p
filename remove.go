@@ -1,4 +1,4 @@
-package fcall
+package go9p
 
 import "fmt"
 
@@ -34,7 +34,7 @@ func (remove *TRemove) Compose() []byte {
 	return buff
 }
 
-func (remove *TRemove) Reply(fs *Filesystem, conn *Connection, h Handler) IFCall {
+func (remove *TRemove) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	file := fs.FileForPath(conn.PathForFid(remove.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, remove.Tag}, "No such file."}

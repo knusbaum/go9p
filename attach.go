@@ -53,7 +53,7 @@ func (attach *TAttach) Reply(fs *filesystem, conn *connection, s *Server) IFCall
 	conn.setFidPath(attach.Fid, "/")
 	reply := RAttach{
 		FCall: FCall{
-			Ctype: Rattach,
+			Ctype: rattach,
 			Tag:   attach.Tag},
 		Qid: Qid{(1 << 7), 28, 1}}
 	return &reply

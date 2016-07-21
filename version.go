@@ -12,7 +12,7 @@ type TRVersion struct {
 
 func (version *TRVersion) String() string {
 	var c byte
-	if version.Ctype == Tversion {
+	if version.Ctype == tversion {
 		c = 't'
 	} else {
 		c = 'r'
@@ -50,9 +50,9 @@ func (version *TRVersion) Compose() []byte {
 
 func (version *TRVersion) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	var reply TRVersion = TRVersion{}
-	if version.Ctype == Tversion {
+	if version.Ctype == tversion {
 		reply = *version
-		reply.Ctype = Rversion
+		reply.Ctype = rversion
 		return &reply
 	} else {
 		return nil

@@ -13,6 +13,9 @@ type Context interface {
 	AddFile(mode uint32, length uint64, name string, parent *File) *File
 }
 
+// Server struct contains functions which are
+// called on file open, read, write, etc.
+// See the definitions of the various context types. All implement the Context interface.
 type Server struct {
 	Open   func(ctx *Opencontext)
 	Read   func(ctx *Readcontext)
@@ -21,6 +24,8 @@ type Server struct {
 	Setup  func(ctx Context)
 }
 
+// Serve serves the 9P file server srv.
+// see Server
 func Serve(srv *Server) {
 
 	var mode uint32
@@ -91,7 +96,7 @@ type Ctx struct {
 }
 
 func (ctx *Ctx) Fail(s string) {
-	response := &RError{FCall{Rerror, ctx.call.Tag}, s}
+	response := &RError{FCall{rerror, ctx.call.Tag}, s}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
@@ -134,7 +139,7 @@ type Opencontext struct {
 
 func (ctx *Opencontext) Respond() {
 	ctx.conn.setFidOpenmode(ctx.Fid, ctx.Mode)
-	response := &ROpen{FCall{Ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
+	response := &ROpen{FCall{ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
@@ -146,7 +151,7 @@ type Readcontext struct {
 }
 
 func (ctx *Readcontext) Respond(data []byte) {
-	response := &RRead{FCall{Rread, ctx.call.Tag}, uint32(len(data)), data}
+	response := &RRead{FCall{rread, ctx.call.Tag}, uint32(len(data)), data}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
@@ -159,7 +164,7 @@ type Writecontext struct {
 }
 
 func (ctx *Writecontext) Respond(count uint32) {
-	response := &RWrite{FCall{Rwrite, ctx.call.Tag}, count}
+	response := &RWrite{FCall{rwrite, ctx.call.Tag}, count}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
@@ -191,7 +196,7 @@ func (ctx *Createcontext) Respond(length uint64) {
 	ctx.conn.setFidPath(ctx.Fid, ctx.NewPath)
 	ctx.conn.setFidOpenmode(ctx.Fid, Ordwr)
 
-	response := &RCreate{FCall{Rcreate, ctx.call.Tag}, newfile.Stat.Qid, iounit}
+	response := &RCreate{FCall{rcreate, ctx.call.Tag}, newfile.Stat.Qid, iounit}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }

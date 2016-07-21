@@ -48,15 +48,15 @@ func (write *TWrite) Compose() []byte {
 func (write *TWrite) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(write.Fid))
 	if file == nil {
-		return &RError{FCall{Rerror, write.Tag}, "No such file."}
+		return &RError{FCall{rerror, write.Tag}, "No such file."}
 	}
 	openmode := conn.getFidOpenmode(write.Fid)
 
 	if (openmode&0x0F) != Owrite &&
 		(openmode&0x0F) != Ordwr {
-		return &RError{FCall{Rerror, write.Tag}, "File notopened for write."}
+		return &RError{FCall{rerror, write.Tag}, "File notopened for write."}
 	} else if (file.Stat.Mode & (1 << 31)) != 0 {
-		return &RError{FCall{Rerror, write.Tag}, "Cannot write to directory."}
+		return &RError{FCall{rerror, write.Tag}, "Cannot write to directory."}
 	}
 
 	offset := write.Offset
@@ -74,7 +74,7 @@ func (write *TWrite) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 			write.Count}
 		s.Write(ctx)
 	} else {
-		return &RError{FCall{Rerror, write.Tag}, "Write not implemented."}
+		return &RError{FCall{rerror, write.Tag}, "Write not implemented."}
 	}
 	return nil
 	//	offset := write.Offset

@@ -65,7 +65,7 @@ func (walk *TWalk) Compose() []byte {
 func (walk *TWalk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(walk.Fid))
 	if file == nil {
-		return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
+		return &RWalk{FCall{rwalk, walk.Tag}, 0, nil}
 		//return &RError{FCall{walk.Ctype, walk.Tag}, "No such file."}
 	}
 
@@ -80,13 +80,13 @@ func (walk *TWalk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 		currfile := fs.fileForPath(path)
 		if currfile == nil {
 			//return &RError{FCall{walk.Ctype, walk.Tag}, "No such path."}
-			return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
+			return &RWalk{FCall{rwalk, walk.Tag}, 0, nil}
 		}
 
 		qids = append(qids, currfile.Stat.Qid)
 	}
 	conn.setFidPath(walk.Newfid, path)
-	return &RWalk{FCall{Rwalk, walk.Tag}, uint16(len(qids)), qids}
+	return &RWalk{FCall{rwalk, walk.Tag}, uint16(len(qids)), qids}
 }
 
 type RWalk struct {

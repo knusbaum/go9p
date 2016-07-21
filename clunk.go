@@ -37,7 +37,7 @@ func (clunk *TClunk) Compose() []byte {
 
 func (clunk *TClunk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	delete(conn.fids, clunk.Fid)
-	return &RClunk{FCall{Rclunk, clunk.Tag}}
+	return &RClunk{FCall{rclunk, clunk.Tag}}
 }
 
 type RClunk struct {

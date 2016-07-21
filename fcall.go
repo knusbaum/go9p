@@ -6,34 +6,34 @@ import (
 )
 
 const (
-	Tversion = 100
-	Rversion = 101
-	Tauth    = 102
-	Rauth    = 103
-	Tattach  = 104
-	Rattach  = 105
-	Terror   = 106 /* illegal */
-	Rerror   = 107
-	Tflush   = 108
-	Rflush   = 109
-	Twalk    = 110
-	Rwalk    = 111
-	Topen    = 112
-	Ropen    = 113
-	Tcreate  = 114
-	Rcreate  = 115
-	Tread    = 116
-	Rread    = 117
-	Twrite   = 118
-	Rwrite   = 119
-	Tclunk   = 120
-	Rclunk   = 121
-	Tremove  = 122
-	Rremove  = 123
-	Tstat    = 124
-	Rstat    = 125
-	Twstat   = 126
-	Rwstat   = 127
+	tversion = 100
+	rversion = 101
+	tauth    = 102
+	rauth    = 103
+	tattach  = 104
+	rattach  = 105
+	terror   = 106 /* illegal */
+	rerror   = 107
+	tflush   = 108
+	rflush   = 109
+	twalk    = 110
+	rwalk    = 111
+	topen    = 112
+	ropen    = 113
+	tcreate  = 114
+	rcreate  = 115
+	tread    = 116
+	rread    = 117
+	twrite   = 118
+	rwrite   = 119
+	tclunk   = 120
+	rclunk   = 121
+	tremove  = 122
+	rremove  = 123
+	tstat    = 124
+	rstat    = 125
+	twstat   = 126
+	rwstat   = 127
 )
 
 type IFCall interface {
@@ -95,25 +95,25 @@ func ParseCall(r io.Reader) (IFCall, error) {
 	var call IFCall
 
 	switch ctype {
-	case Tversion:
+	case tversion:
 		call = &TRVersion{}
 		break
-	case Rversion:
+	case rversion:
 		call = &TRVersion{}
 		break
-	case Tauth:
+	case tauth:
 		call = &TAuth{}
 		break
-	case Rauth:
+	case rauth:
 		call = &RAuth{}
 		break
-	case Tattach:
+	case tattach:
 		call = &TAttach{}
 		break
-	case Rattach:
+	case rattach:
 		call = &RAttach{}
 		break
-	case Rerror:
+	case rerror:
 		call = &RError{}
 		break
 		//	case Tflush:
@@ -122,55 +122,55 @@ func ParseCall(r io.Reader) (IFCall, error) {
 		//	case Rflush:
 		//		call = &RFlush{}
 		//		break
-	case Twalk:
+	case twalk:
 		call = &TWalk{}
 		break
 		//	case Rwalk:
 		//		call = &RWalk{}
 		//		break
-	case Topen:
+	case topen:
 		call = &TOpen{}
 		break
 		//	case Ropen:
 		//		call = &ROpen{}
 		//		break
-	case Tcreate:
+	case tcreate:
 		call = &TCreate{}
 		break
 		//	case Rcreate:
 		//		call = &RCreate{}
 		//		break
-	case Tread:
+	case tread:
 		call = &TRead{}
 		break
 		//	case Rread:
 		//		call = &RRead{}
 		//		break
-	case Twrite:
+	case twrite:
 		call = &TWrite{}
 		break
 		//	case Rwrite:
 		//		call = &RWrite{}
 		//		break
-	case Tclunk:
+	case tclunk:
 		call = &TClunk{}
 		break
 		//	case Rclunk:
 		//		call = &RClunk{}
 		//		break
-	case Tremove:
+	case tremove:
 		call = &TRemove{}
 		break
 		//	case Rremove:
 		//		call = &RRemove{}
 		//		break
-	case Tstat:
+	case tstat:
 		call = &TStat{}
 		break
 		//	case Rstat:
 		//		call = &RStat{}
 		//		break
-	case Twstat:
+	case twstat:
 		call = &TWstat{}
 		break
 		//	case Rwstat:
@@ -178,7 +178,7 @@ func ParseCall(r io.Reader) (IFCall, error) {
 		//		break
 	default:
 		tag, _ := fromLittleE16(buff)
-		return &RError{FCall{Rerror, tag}, "Not Implemented."},
+		return &RError{FCall{rerror, tag}, "Not Implemented."},
 			&ParseError{fmt.Sprintf("Not implemented: %d", ctype)}
 	}
 

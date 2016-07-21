@@ -49,33 +49,33 @@ func (open *TOpen) Compose() []byte {
 func (open *TOpen) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(open.Fid))
 	if file == nil {
-		return &RError{FCall{Rerror, open.Tag}, "No such file."}
+		return &RError{FCall{rerror, open.Tag}, "No such file."}
 	}
 
 	openmode := conn.getFidOpenmode(open.Fid)
 
 	if openmode != None {
-		return &RError{FCall{Rerror, open.Tag}, "Fid already open."}
+		return &RError{FCall{rerror, open.Tag}, "Fid already open."}
 	}
 	if !openPermission(conn.uname, file, open.Mode&0x0F) {
-		return &RError{FCall{Rerror, open.Tag}, "Permission denied."}
+		return &RError{FCall{rerror, open.Tag}, "Permission denied."}
 	}
 
 	if file.Stat.Mode&(1<<31) != 0 {
 		// This is a directory.
 		if (open.Mode&0x0F) == Owrite ||
 			(open.Mode&0x0F) == Ordwr {
-			return &RError{FCall{Rerror, open.Tag}, "Cannot write to directory."}
+			return &RError{FCall{rerror, open.Tag}, "Cannot write to directory."}
 		}
 		conn.setFidOpenmode(open.Fid, open.Mode)
 		conn.setFidOpenoffset(open.Fid, file.Stat.Length)
-		return &ROpen{FCall{Ropen, open.Tag}, file.Stat.Qid, iounit}
+		return &ROpen{FCall{ropen, open.Tag}, file.Stat.Qid, iounit}
 	} else {
 		if s.Open != nil {
 			ctx := &Opencontext{Ctx{conn, fs, &open.FCall, open.Fid, file}, open.Mode}
 			s.Open(ctx)
 		} else {
-			return &RError{FCall{Rerror, open.Tag}, "Open not implemented."}
+			return &RError{FCall{rerror, open.Tag}, "Open not implemented."}
 		}
 		return nil
 	}

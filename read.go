@@ -43,19 +43,19 @@ func (read *TRead) Compose() []byte {
 
 func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	if read.Count > iounit {
-		return &RError{FCall{Rerror, read.Tag}, "Read size too large."}
+		return &RError{FCall{rerror, read.Tag}, "Read size too large."}
 	}
 
 	file := fs.fileForPath(conn.pathForFid(read.Fid))
 	if file == nil {
-		return &RError{FCall{Rerror, read.Tag}, "Failed to read from FID."}
+		return &RError{FCall{rerror, read.Tag}, "Failed to read from FID."}
 	}
 
 	openmode := conn.getFidOpenmode(read.Fid)
 	if (openmode&0x0F) != Oread &&
 		(openmode&0x0F) != Ordwr &&
 		(openmode&0x0F) != Oexec {
-		return &RError{FCall{Rerror, read.Tag}, "File not opened."}
+		return &RError{FCall{rerror, read.Tag}, "File not opened."}
 	}
 
 	if file.Stat.Mode&(1<<31) != 0 {
@@ -77,7 +77,7 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 			copy(data, contents[read.Offset:count])
 		}
 
-		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
+		return &RRead{FCall{rread, read.Tag}, uint32(count), data}
 	} else {
 		var count uint64 = 0
 		if read.Offset+uint64(read.Count) > uint64(file.Stat.Length) {
@@ -93,7 +93,7 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 				uint32(count)}
 			s.Read(ctx)
 		} else {
-			return &RError{FCall{Rerror, read.Tag}, "Read not implemented."}
+			return &RError{FCall{rerror, read.Tag}, "Read not implemented."}
 		}
 		return nil
 		//		var count uint64 = 0

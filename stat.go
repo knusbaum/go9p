@@ -41,9 +41,9 @@ func (stat *TStat) Compose() []byte {
 func (stat *TStat) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(stat.Fid))
 	if file == nil {
-		return &RError{FCall{Rstat, stat.Tag}, "No such file."}
+		return &RError{FCall{rstat, stat.Tag}, "No such file."}
 	}
-	return &RStat{FCall{Rstat, stat.Tag}, file.Stat}
+	return &RStat{FCall{rstat, stat.Tag}, file.Stat}
 }
 
 type Stat struct {

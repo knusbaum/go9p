@@ -5,6 +5,7 @@ import (
 	"net"
 )
 
+// Open mode file constants
 const (
 	Oread  = 0
 	Owrite = 1

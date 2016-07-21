@@ -20,7 +20,7 @@ func (error *RError) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	error.Ename, buff = FromString(buff)
+	error.Ename, buff = fromString(buff)
 	return buff, nil
 }
 
@@ -30,10 +30,11 @@ func (error *RError) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = error.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(error.Tag, buffer)
-	buffer = ToString(error.Ename, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = error.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(error.Tag, buffer)
+	buffer = toString(error.Ename, buffer)
 
 	return buff
 }

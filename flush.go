@@ -18,7 +18,7 @@ func (flush *TFlush) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	flush.Oldtag, buff = FromLittleE16(buff)
+	flush.Oldtag, buff = fromLittleE16(buff)
 	return buff, nil
 }
 
@@ -28,10 +28,11 @@ func (flush *TFlush) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = flush.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(flush.Tag, buffer)
-	buffer = ToLittleE16(flush.Oldtag, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = flush.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(flush.Tag, buffer)
+	buffer = toLittleE16(flush.Oldtag, buffer)
 	return buff
 }
 
@@ -58,8 +59,9 @@ func (flush *RFlush) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = flush.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(flush.Tag, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = flush.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(flush.Tag, buffer)
 	return buff
 }

@@ -17,7 +17,7 @@ func (clunk *TClunk) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	clunk.Fid, buff = FromLittleE32(buff)
+	clunk.Fid, buff = fromLittleE32(buff)
 	return buff, nil
 }
 
@@ -27,14 +27,15 @@ func (clunk *TClunk) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = clunk.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(clunk.Tag, buffer)
-	buffer = ToLittleE32(clunk.Fid, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = clunk.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(clunk.Tag, buffer)
+	buffer = toLittleE32(clunk.Fid, buffer)
 	return buff
 }
 
-func (clunk *TClunk) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
+func (clunk *TClunk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	delete(conn.fids, clunk.Fid)
 	return &RClunk{FCall{Rclunk, clunk.Tag}}
 }
@@ -62,8 +63,9 @@ func (clunk *RClunk) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = clunk.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(clunk.Tag, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = clunk.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(clunk.Tag, buffer)
 	return buff
 }

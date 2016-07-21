@@ -6,7 +6,7 @@ import (
 
 type TRVersion struct {
 	FCall
-	Msize uint32
+	Msize   uint32
 	Version string
 }
 
@@ -27,8 +27,8 @@ func (version *TRVersion) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	version.Msize, buff = FromLittleE32(buff)
-	version.Version, buff = FromString(buff)
+	version.Msize, buff = fromLittleE32(buff)
+	version.Version, buff = fromString(buff)
 	return buff, nil
 }
 
@@ -37,23 +37,24 @@ func (version *TRVersion) Compose() []byte {
 	length := 4 + 1 + 2 + 4 + (2 + len(version.Version))
 	buff := make([]byte, length)
 	buffer := buff
-	
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = version.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(version.Tag, buffer)
-	buffer = ToLittleE32(version.Msize, buffer)
-	buffer = ToString(version.Version, buffer)
-	
+
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = version.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(version.Tag, buffer)
+	buffer = toLittleE32(version.Msize, buffer)
+	buffer = toString(version.Version, buffer)
+
 	return buff
 }
 
-func (version *TRVersion) Reply(filesystem *Filesystem, conn *Connection, s *Server) IFCall {
+func (version *TRVersion) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	var reply TRVersion = TRVersion{}
 	if version.Ctype == Tversion {
 		reply = *version
 		reply.Ctype = Rversion
 		return &reply
 	} else {
-		return nil;
+		return nil
 	}
 }

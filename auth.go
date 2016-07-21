@@ -6,7 +6,7 @@ import (
 
 type TAuth struct {
 	FCall
-	Afid uint32
+	Afid  uint32
 	Uname string
 	Aname string
 }
@@ -22,9 +22,9 @@ func (auth *TAuth) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	auth.Afid, buff = FromLittleE32(buff)
-	auth.Uname, buff = FromString(buff)
-	auth.Aname, buff = FromString(buff)
+	auth.Afid, buff = fromLittleE32(buff)
+	auth.Uname, buff = fromString(buff)
+	auth.Aname, buff = fromString(buff)
 	return buff, nil
 }
 
@@ -35,17 +35,18 @@ func (auth *TAuth) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(length, buffer)
-	buffer[0] = auth.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(auth.Tag, buffer)
-	buffer = ToLittleE32(auth.Afid, buffer)
-	buffer = ToString(auth.Uname, buffer)
-	buffer = ToString(auth.Aname, buffer)
+	buffer = toLittleE32(length, buffer)
+	buffer[0] = auth.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(auth.Tag, buffer)
+	buffer = toLittleE32(auth.Afid, buffer)
+	buffer = toString(auth.Uname, buffer)
+	buffer = toString(auth.Aname, buffer)
 
 	return buff
 }
 
-func (auth *TAuth) Reply(filesystem *Filesystem, conn *Connection, s *Server) IFCall {
+func (auth *TAuth) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	reply := RError{}
 	reply.Ctype = Rerror
 	reply.Tag = auth.Tag
@@ -82,9 +83,10 @@ func (auth *RAuth) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = auth.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(auth.Tag, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = auth.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(auth.Tag, buffer)
 	qidbuffer := auth.Aqid.Compose()
 	copy(buffer, qidbuffer)
 	return buff

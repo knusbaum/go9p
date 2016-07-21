@@ -7,7 +7,7 @@ import (
 
 type TWstat struct {
 	FCall
-	Fid uint32
+	Fid  uint32
 	Stat Stat
 }
 
@@ -21,8 +21,8 @@ func (wstat *TWstat) Parse(buff []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	wstat.Fid, buff = FromLittleE32(buff)
-	_, buff = FromLittleE16(buff) // Throw away stat length.
+	wstat.Fid, buff = fromLittleE32(buff)
+	_, buff = fromLittleE16(buff) // Throw away stat length.
 	buff, err = wstat.Stat.Parse(buff)
 	if err != nil {
 		return nil, err
@@ -37,10 +37,11 @@ func (wstat *TWstat) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = wstat.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(wstat.Tag, buffer)
-	buffer = ToLittleE32(wstat.Fid, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = wstat.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(wstat.Tag, buffer)
+	buffer = toLittleE32(wstat.Fid, buffer)
 	copy(buffer, wstat.Stat.Compose())
 
 	return buff
@@ -83,8 +84,8 @@ func (wstat *TWstat) Compose() []byte {
  * ``make the state of the file exactly what it claims to be.'')
  */
 
-func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
-	file := fs.FileForPath(conn.PathForFid(wstat.Fid))
+func (wstat *TWstat) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
+	file := fs.fileForPath(conn.pathForFid(wstat.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, wstat.Tag}, "No such file."}
 	}
@@ -94,7 +95,7 @@ func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	stat = &file.Stat
 	newstat = &wstat.Stat
 
-	relation := UserRelation(conn.uname, file)
+	relation := userRelation(conn.uname, file)
 
 	{
 		// Need to check all this stuff before we change *ANYTHING*
@@ -107,7 +108,7 @@ func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 		}
 
 		if newstat.Length != math.MaxUint64 {
-			if !OpenPermission(conn.uname, file, Owrite) {
+			if !openPermission(conn.uname, file, Owrite) {
 				fmt.Println("Can't alter length. Don't have write permission.")
 				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
 			}
@@ -129,7 +130,7 @@ func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 
 		if len(newstat.Gid) != 0 {
 			if file.Stat.Uid != conn.uname ||
-				!UserInGroup(conn.uname, newstat.Gid) {
+				!userInGroup(conn.uname, newstat.Gid) {
 				fmt.Println("Can't changegroup. Not owner or not member of new group.")
 				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
 			}
@@ -146,7 +147,7 @@ func (wstat *TWstat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 	}
 
 	if newstat.Mode != math.MaxUint32 {
-		newmode := newstat.Mode & 0x000001FF;
+		newmode := newstat.Mode & 0x000001FF
 		stat.Mode = (stat.Mode & ^uint32(0x1FF)) | newmode
 	}
 
@@ -184,8 +185,9 @@ func (wstat *RWstat) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = wstat.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(wstat.Tag, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = wstat.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(wstat.Tag, buffer)
 	return buff
 }

@@ -4,10 +4,10 @@ import "fmt"
 
 type TWrite struct {
 	FCall
-	Fid uint32
+	Fid    uint32
 	Offset uint64
-	Count uint32
-	Data []byte
+	Count  uint32
+	Data   []byte
 }
 
 func (write *TWrite) String() string {
@@ -20,9 +20,9 @@ func (write *TWrite) Parse(buff []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	write.Fid, buff = FromLittleE32(buff)
-	write.Offset, buff = FromLittleE64(buff)
-	write.Count, buff = FromLittleE32(buff)
+	write.Fid, buff = fromLittleE32(buff)
+	write.Offset, buff = fromLittleE64(buff)
+	write.Count, buff = fromLittleE32(buff)
 	write.Data = make([]byte, write.Count)
 	copy(write.Data, buff[:write.Count])
 	return buff[write.Count:], nil
@@ -34,37 +34,38 @@ func (write *TWrite) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = write.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(write.Tag, buffer)
-	buffer = ToLittleE32(write.Fid, buffer)
-	buffer = ToLittleE64(write.Offset, buffer)
-	buffer = ToLittleE32(write.Count, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = write.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(write.Tag, buffer)
+	buffer = toLittleE32(write.Fid, buffer)
+	buffer = toLittleE64(write.Offset, buffer)
+	buffer = toLittleE32(write.Count, buffer)
 	copy(buffer, write.Data)
 	return buff
 }
 
-func (write *TWrite) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
-	file := fs.FileForPath(conn.PathForFid(write.Fid))
+func (write *TWrite) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
+	file := fs.fileForPath(conn.pathForFid(write.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, write.Tag}, "No such file."}
 	}
-	openmode := conn.GetFidOpenmode(write.Fid)
+	openmode := conn.getFidOpenmode(write.Fid)
 
-	if (openmode & 0x0F) != Owrite &&
-		(openmode & 0x0F) != Ordwr {
+	if (openmode&0x0F) != Owrite &&
+		(openmode&0x0F) != Ordwr {
 		return &RError{FCall{Rerror, write.Tag}, "File notopened for write."}
-	} else if (file.Stat.Mode & (1<<31)) != 0 {
+	} else if (file.Stat.Mode & (1 << 31)) != 0 {
 		return &RError{FCall{Rerror, write.Tag}, "Cannot write to directory."}
 	}
 
 	offset := write.Offset
-	if openmode & 0x10 == 0 {
+	if openmode&0x10 == 0 {
 		// If we're not truncating, 0 offset is from EOF.
-		foffset := conn.GetFidOpenoffset(write.Fid)
+		foffset := conn.getFidOpenoffset(write.Fid)
 		offset += foffset
 	}
-	
+
 	if s.Write != nil {
 		ctx := &Writecontext{
 			Ctx{conn, fs, &write.FCall, write.Fid, file},
@@ -76,23 +77,23 @@ func (write *TWrite) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 		return &RError{FCall{Rerror, write.Tag}, "Write not implemented."}
 	}
 	return nil
-//	offset := write.Offset
-//	if openmode & 0x10 == 0 {
-//		// If we're not truncating, 0 offset is from EOF.
-//		foffset := conn.GetFidOpenoffset(write.Fid)
-//		offset += foffset
-//	}
-//
-//	if offset + uint64(write.Count) > file.stat.Length {
-//		// Extending the file.
-//		newlen := offset + uint64(write.Count)
-//		file.stat.Length = newlen
-//		newbuff := make([]byte, newlen - uint64(len(file.Contents)) )
-//		file.Contents = append(file.Contents, newbuff...)
-//	}
-//
-//	copy(file.Contents[offset:offset+uint64(write.Count)], write.Data)
-//	return &RWrite{FCall{Rwrite, write.Tag}, write.Count}
+	//	offset := write.Offset
+	//	if openmode & 0x10 == 0 {
+	//		// If we're not truncating, 0 offset is from EOF.
+	//		foffset := conn.GetFidOpenoffset(write.Fid)
+	//		offset += foffset
+	//	}
+	//
+	//	if offset + uint64(write.Count) > file.stat.Length {
+	//		// Extending the file.
+	//		newlen := offset + uint64(write.Count)
+	//		file.stat.Length = newlen
+	//		newbuff := make([]byte, newlen - uint64(len(file.Contents)) )
+	//		file.Contents = append(file.Contents, newbuff...)
+	//	}
+	//
+	//	copy(file.Contents[offset:offset+uint64(write.Count)], write.Data)
+	//	return &RWrite{FCall{Rwrite, write.Tag}, write.Count}
 }
 
 type RWrite struct {
@@ -109,7 +110,7 @@ func (write *RWrite) Parse(buff []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	write.Count, buff = FromLittleE32(buff)
+	write.Count, buff = fromLittleE32(buff)
 	return buff, nil
 }
 
@@ -119,9 +120,10 @@ func (write *RWrite) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = write.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(write.Tag, buffer)
-	buffer = ToLittleE32(write.Count, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = write.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(write.Tag, buffer)
+	buffer = toLittleE32(write.Count, buffer)
 	return buff
 }

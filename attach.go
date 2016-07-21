@@ -6,8 +6,8 @@ import (
 
 type TAttach struct {
 	FCall
-	Fid uint32
-	Afid uint32
+	Fid   uint32
+	Afid  uint32
 	Uname string
 	Aname string
 }
@@ -23,10 +23,10 @@ func (attach *TAttach) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	attach.Fid, buff = FromLittleE32(buff)
-	attach.Afid, buff = FromLittleE32(buff)
-	attach.Uname, buff = FromString(buff)
-	attach.Aname, buff = FromString(buff)
+	attach.Fid, buff = fromLittleE32(buff)
+	attach.Afid, buff = fromLittleE32(buff)
+	attach.Uname, buff = fromString(buff)
+	attach.Aname, buff = fromString(buff)
 	return buff, nil
 }
 
@@ -37,23 +37,24 @@ func (attach *TAttach) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = attach.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(attach.Tag, buffer)
-	buffer = ToLittleE32(attach.Fid, buffer)
-	buffer = ToLittleE32(attach.Afid, buffer)
-	buffer = ToString(attach.Uname, buffer)
-	buffer = ToString(attach.Aname, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = attach.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(attach.Tag, buffer)
+	buffer = toLittleE32(attach.Fid, buffer)
+	buffer = toLittleE32(attach.Afid, buffer)
+	buffer = toString(attach.Uname, buffer)
+	buffer = toString(attach.Aname, buffer)
 	return buff
 }
 
-func (attach *TAttach) Reply(filesystem *Filesystem, conn *Connection, s *Server) IFCall {
-	conn.SetUname(attach.Uname)
-	conn.SetFidPath(attach.Fid, "/")
+func (attach *TAttach) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
+	conn.uname = attach.Uname
+	conn.setFidPath(attach.Fid, "/")
 	reply := RAttach{
 		FCall: FCall{
 			Ctype: Rattach,
-			Tag: attach.Tag},
+			Tag:   attach.Tag},
 		Qid: Qid{(1 << 7), 28, 1}}
 	return &reply
 }
@@ -87,9 +88,10 @@ func (attach *RAttach) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = attach.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(attach.Tag, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = attach.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(attach.Tag, buffer)
 	qidbuff := attach.Qid.Compose()
 	copy(buffer, qidbuff)
 	return buff

@@ -17,7 +17,7 @@ func (remove *TRemove) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	remove.Fid, buff = FromLittleE32(buff)
+	remove.Fid, buff = fromLittleE32(buff)
 	return buff, nil
 }
 
@@ -27,25 +27,26 @@ func (remove *TRemove) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = remove.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(remove.Tag, buffer)
-	buffer = ToLittleE32(remove.Fid, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = remove.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(remove.Tag, buffer)
+	buffer = toLittleE32(remove.Fid, buffer)
 	return buff
 }
 
-func (remove *TRemove) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
-	file := fs.FileForPath(conn.PathForFid(remove.Fid))
+func (remove *TRemove) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
+	file := fs.fileForPath(conn.pathForFid(remove.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, remove.Tag}, "No such file."}
 	}
-	if(!OpenPermission(conn.uname, file, Owrite)) {
+	if !openPermission(conn.uname, file, Owrite) {
 		return &RError{FCall{Rerror, remove.Tag}, "Permission denied."}
 	}
 
-	fs.RemoveFile(file)
+	fs.removeFile(file)
 
-	fs.DumpFiles()
+	fs.dumpFiles()
 
 	return &RRemove{FCall{Rremove, remove.Tag}}
 }
@@ -73,8 +74,9 @@ func (remove *RRemove) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = remove.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(remove.Tag, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = remove.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(remove.Tag, buffer)
 	return buff
 }

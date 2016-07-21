@@ -10,7 +10,7 @@ const (
 
 type TOpen struct {
 	FCall
-	Fid uint32
+	Fid  uint32
 	Mode uint8
 }
 
@@ -25,7 +25,7 @@ func (open *TOpen) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	open.Fid, buff = FromLittleE32(buff)
+	open.Fid, buff = fromLittleE32(buff)
 	open.Mode = buff[0]
 	return buff[1:], nil
 }
@@ -36,37 +36,39 @@ func (open *TOpen) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = open.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(open.Tag, buffer)
-	buffer = ToLittleE32(open.Fid, buffer)
-	buffer[0] = open.Mode; buffer = buffer[1:]
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = open.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(open.Tag, buffer)
+	buffer = toLittleE32(open.Fid, buffer)
+	buffer[0] = open.Mode
+	buffer = buffer[1:]
 	return buff
 }
 
-func (open *TOpen) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
-	file := fs.FileForPath(conn.PathForFid(open.Fid))
+func (open *TOpen) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
+	file := fs.fileForPath(conn.pathForFid(open.Fid))
 	if file == nil {
 		return &RError{FCall{Rerror, open.Tag}, "No such file."}
 	}
 
-	openmode := conn.GetFidOpenmode(open.Fid)
+	openmode := conn.getFidOpenmode(open.Fid)
 
 	if openmode != None {
 		return &RError{FCall{Rerror, open.Tag}, "Fid already open."}
 	}
-	if(!OpenPermission(conn.uname, file, open.Mode & 0x0F)) {
+	if !openPermission(conn.uname, file, open.Mode&0x0F) {
 		return &RError{FCall{Rerror, open.Tag}, "Permission denied."}
 	}
 
-	if file.Stat.Mode & (1 << 31) != 0 {
+	if file.Stat.Mode&(1<<31) != 0 {
 		// This is a directory.
-		if (open.Mode & 0x0F) == Owrite ||
-			(open.Mode & 0x0F) == Ordwr {
+		if (open.Mode&0x0F) == Owrite ||
+			(open.Mode&0x0F) == Ordwr {
 			return &RError{FCall{Rerror, open.Tag}, "Cannot write to directory."}
 		}
-		conn.SetFidOpenmode(open.Fid, open.Mode)
-		conn.SetFidOpenoffset(open.Fid, file.Stat.Length)
+		conn.setFidOpenmode(open.Fid, open.Mode)
+		conn.setFidOpenoffset(open.Fid, file.Stat.Length)
 		return &ROpen{FCall{Ropen, open.Tag}, file.Stat.Qid, iounit}
 	} else {
 		if s.Open != nil {
@@ -81,7 +83,7 @@ func (open *TOpen) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 
 type ROpen struct {
 	FCall
-	Qid Qid
+	Qid    Qid
 	Iounit uint32
 }
 
@@ -100,7 +102,7 @@ func (open *ROpen) Parse(buff []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	open.Iounit, buff = FromLittleE32(buff)
+	open.Iounit, buff = fromLittleE32(buff)
 	return buff, nil
 }
 
@@ -110,12 +112,13 @@ func (open *ROpen) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = open.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(open.Tag, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = open.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(open.Tag, buffer)
 	qidbuff := open.Qid.Compose()
 	copy(buffer, qidbuff)
 	buffer = buffer[len(qidbuff):]
-	buffer = ToLittleE32(open.Iounit, buffer)
+	buffer = toLittleE32(open.Iounit, buffer)
 	return buff
 }

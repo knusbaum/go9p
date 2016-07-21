@@ -19,7 +19,7 @@ func (stat *TStat) Parse(buff []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	stat.Fid, buff = FromLittleE32(buff)
+	stat.Fid, buff = fromLittleE32(buff)
 	return buff, nil
 }
 
@@ -28,17 +28,18 @@ func (stat *TStat) Compose() []byte {
 	length := 4 + 1 + 2 + 4
 	buff := make([]byte, length)
 	buffer := buff
-	
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = stat.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(stat.Tag, buffer)
-	buffer = ToLittleE32(stat.Fid, buffer)
-	
+
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = stat.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(stat.Tag, buffer)
+	buffer = toLittleE32(stat.Fid, buffer)
+
 	return buff
 }
 
-func (stat *TStat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
-	file := fs.FileForPath(conn.PathForFid(stat.Fid))
+func (stat *TStat) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
+	file := fs.fileForPath(conn.pathForFid(stat.Fid))
 	if file == nil {
 		return &RError{FCall{Rstat, stat.Tag}, "No such file."}
 	}
@@ -46,17 +47,17 @@ func (stat *TStat) Reply(fs *Filesystem, conn *Connection, s *Server) IFCall {
 }
 
 type Stat struct {
-	Stype uint16
-	Dev uint32
-	Qid Qid
-	Mode uint32
-	Atime uint32
-	Mtime uint32
+	Stype  uint16
+	Dev    uint32
+	Qid    Qid
+	Mode   uint32
+	Atime  uint32
+	Mtime  uint32
 	Length uint64
-	Name string
-	Uid string
-	Gid string
-	Muid string
+	Name   string
+	Uid    string
+	Gid    string
+	Muid   string
 }
 
 func (stat *Stat) String() string {
@@ -67,21 +68,21 @@ func (stat *Stat) String() string {
 }
 
 func (stat *Stat) Parse(buff []byte) ([]byte, error) {
-	_, buff = FromLittleE16(buff) // throw away length
-	stat.Stype, buff = FromLittleE16(buff)
-	stat.Dev, buff = FromLittleE32(buff)
+	_, buff = fromLittleE16(buff) // throw away length
+	stat.Stype, buff = fromLittleE16(buff)
+	stat.Dev, buff = fromLittleE32(buff)
 	buff, err := stat.Qid.Parse(buff)
 	if err != nil {
 		return nil, err
 	}
-	stat.Mode, buff = FromLittleE32(buff)
-	stat.Atime, buff = FromLittleE32(buff)
-	stat.Mtime, buff = FromLittleE32(buff)
-	stat.Length, buff = FromLittleE64(buff)
-	stat.Name, buff = FromString(buff)
-	stat.Uid, buff = FromString(buff)
-	stat.Gid, buff = FromString(buff)
-	stat.Muid, buff = FromString(buff)
+	stat.Mode, buff = fromLittleE32(buff)
+	stat.Atime, buff = fromLittleE32(buff)
+	stat.Mtime, buff = fromLittleE32(buff)
+	stat.Length, buff = fromLittleE64(buff)
+	stat.Name, buff = fromString(buff)
+	stat.Uid, buff = fromString(buff)
+	stat.Gid, buff = fromString(buff)
+	stat.Muid, buff = fromString(buff)
 	return buff, nil
 }
 
@@ -100,20 +101,20 @@ func (stat *Stat) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE16(length - 2, buffer)
-	buffer = ToLittleE16(stat.Stype, buffer)
-	buffer = ToLittleE32(stat.Dev, buffer)
+	buffer = toLittleE16(length-2, buffer)
+	buffer = toLittleE16(stat.Stype, buffer)
+	buffer = toLittleE32(stat.Dev, buffer)
 	qidbuff := stat.Qid.Compose()
 	copy(buffer, qidbuff)
 	buffer = buffer[len(qidbuff):]
-	buffer = ToLittleE32(stat.Mode, buffer)
-	buffer = ToLittleE32(stat.Atime, buffer)
-	buffer = ToLittleE32(stat.Mtime, buffer)
-	buffer = ToLittleE64(stat.Length, buffer)
-	buffer = ToString(stat.Name, buffer)
-	buffer = ToString(stat.Uid, buffer)
-	buffer = ToString(stat.Gid, buffer)
-	buffer = ToString(stat.Muid, buffer)
+	buffer = toLittleE32(stat.Mode, buffer)
+	buffer = toLittleE32(stat.Atime, buffer)
+	buffer = toLittleE32(stat.Mtime, buffer)
+	buffer = toLittleE64(stat.Length, buffer)
+	buffer = toString(stat.Name, buffer)
+	buffer = toString(stat.Uid, buffer)
+	buffer = toString(stat.Gid, buffer)
+	buffer = toString(stat.Muid, buffer)
 	return buff
 }
 
@@ -132,7 +133,7 @@ func (stat *RStat) Parse(buff []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, buff = FromLittleE16(buff) // stat length
+	_, buff = fromLittleE16(buff) // stat length
 	buff, err = stat.Stat.Parse(buff)
 	if err != nil {
 		return nil, err
@@ -147,11 +148,12 @@ func (stat *RStat) Compose() []byte {
 	buff := make([]byte, length)
 	buffer := buff
 
-	buffer = ToLittleE32(uint32(length), buffer)
-	buffer[0] = stat.Ctype; buffer = buffer[1:]
-	buffer = ToLittleE16(stat.Tag, buffer)
-	buffer = ToLittleE16(statLength, buffer)
+	buffer = toLittleE32(uint32(length), buffer)
+	buffer[0] = stat.Ctype
+	buffer = buffer[1:]
+	buffer = toLittleE16(stat.Tag, buffer)
+	buffer = toLittleE16(statLength, buffer)
 	copy(buffer, stat.Stat.Compose())
-	
+
 	return buff
 }

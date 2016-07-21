@@ -68,7 +68,7 @@ func (create *TCreate) Reply(fs *filesystem, conn *connection, s *Server) IFCall
 	}
 
 	if s.Create != nil {
-		ctx := &Createcontext{
+		ctx := &CreateContext{
 			Ctx{conn, fs, &create.FCall, create.Fid, file},
 			path,
 			create.Name,

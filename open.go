@@ -72,7 +72,7 @@ func (open *TOpen) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 		return &ROpen{FCall{ropen, open.Tag}, file.Stat.Qid, iounit}
 	} else {
 		if s.Open != nil {
-			ctx := &Opencontext{Ctx{conn, fs, &open.FCall, open.Fid, file}, open.Mode}
+			ctx := &OpenContext{Ctx{conn, fs, &open.FCall, open.Fid, file}, open.Mode}
 			s.Open(ctx)
 		} else {
 			return &RError{FCall{rerror, open.Tag}, "Open not implemented."}

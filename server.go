@@ -18,7 +18,6 @@ import (
 	"time"
 )
 
-
 // Server struct contains functions which are
 // called on file open, read, write, and create
 // See the definitions of the various context types.
@@ -29,15 +28,15 @@ import (
 // Setup is called once the server is up and running, and is
 // the appropriate place to add any initial files to the server.
 type Server struct {
-	Open   func(ctx *Opencontext)
-	Read   func(ctx *Readcontext)
-	Write  func(ctx *Writecontext)
-	Create func(ctx *Createcontext)
+	Open   func(ctx *OpenContext)
+	Read   func(ctx *ReadContext)
+	Write  func(ctx *WriteContext)
+	Create func(ctx *CreateContext)
 	Setup  func(ctx *Ctx)
 }
 
 // Serve serves the 9P2000 file server.
-func (srv *Server)Serve(listener net.Listener) {
+func (srv *Server) Serve(listener net.Listener) {
 
 	var mode uint32
 	var i uint32
@@ -170,43 +169,43 @@ func (ctx *Ctx) Username() string {
 	return ""
 }
 
-// Opencontext - The context passed to the Open callback
+// OpenContext - The context passed to the Open callback
 // in Server.
 // Mode is the requested open mode for the file.
 // Mode can be ignored unless you want to do some special
 // logic. The server handles the common case - it won't call
 // Write on a file not opened for writing, etc.
-type Opencontext struct {
+type OpenContext struct {
 	Ctx
 	Mode uint8
 }
 
 // Respond - Tells the client the open operation was successful.
-func (ctx *Opencontext) Respond() {
+func (ctx *OpenContext) Respond() {
 	ctx.conn.setFidOpenmode(ctx.Fid, ctx.Mode)
 	response := &ROpen{FCall{ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 
-// Readcontext - The context passed to the Read callback
+// ReadContext - The context passed to the Read callback
 // in Server.
 // Offset is the offset into the file that is requested
 // Count is the number of bytes requested.
-type Readcontext struct {
+type ReadContext struct {
 	Ctx
 	Offset uint64
 	Count  uint32
 }
 
 // Respond - Sends requested data back to the client.
-func (ctx *Readcontext) Respond(data []byte) {
+func (ctx *ReadContext) Respond(data []byte) {
 	response := &RRead{FCall{rread, ctx.call.Tag}, uint32(len(data)), data}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 
-// Writecontext - The context passed to the Write callback
+// WriteContext - The context passed to the Write callback
 // in Server.
 // Data - the data from the client that they want to write
 // to the file
@@ -214,7 +213,7 @@ func (ctx *Readcontext) Respond(data []byte) {
 // be written at
 // Count - the number of bytes to be written. (this should
 // correspond with len(Data)
-type Writecontext struct {
+type WriteContext struct {
 	Ctx
 	Data   []byte
 	Offset uint64
@@ -226,20 +225,20 @@ type Writecontext struct {
 // Writecontext.Count. The client might consider it to be
 // an error if the bytes written differs from the requested
 // amount.
-func (ctx *Writecontext) Respond(count uint32) {
+func (ctx *WriteContext) Respond(count uint32) {
 	response := &RWrite{FCall{rwrite, ctx.call.Tag}, count}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 
-// Createcontext - The context passed to the Create callback
+// CreateContext - The context passed to the Create callback
 // in Server.
 // NewPath - the full path of the new file (including Name)
 // Name - the name of the new file.
 // Perm - the permissions of the file. Lower 9 bits are
 // Unix-style permissions (user/group/other rwxrwxrwx). The high
 // bit (1 << 31) is the directory flag.
-type Createcontext struct {
+type CreateContext struct {
 	Ctx
 	NewPath string
 	Name    string
@@ -249,7 +248,7 @@ type Createcontext struct {
 
 // Respond - Creates the file requested and sets the length.
 // Returns the new file.
-func (ctx *Createcontext) Respond(length uint64) *File {
+func (ctx *CreateContext) Respond(length uint64) *File {
 	newfile :=
 		ctx.fs.addFile(ctx.NewPath,
 			Stat{

@@ -67,7 +67,7 @@ func (write *TWrite) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	}
 
 	if s.Write != nil {
-		ctx := &Writecontext{
+		ctx := &WriteContext{
 			Ctx{conn, fs, &write.FCall, write.Fid, file},
 			write.Data,
 			offset,

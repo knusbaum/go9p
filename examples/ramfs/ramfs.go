@@ -2,37 +2,37 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"github.com/knusbaum/go9p"
+	"net"
 )
 
 var data map[string][]byte
 
-func Open(ctx *go9p.Opencontext) {
+func Open(ctx *go9p.OpenContext) {
 	ctx.Respond()
 }
 
-func Read(ctx *go9p.Readcontext) {
-	if ctx.Offset  >= ctx.File.Stat.Length {
+func Read(ctx *go9p.ReadContext) {
+	if ctx.Offset >= ctx.File.Stat.Length {
 		ctx.Respond(nil)
 		return
 	}
 
 	count := uint64(ctx.Count)
-	if ctx.Offset + count > ctx.File.Stat.Length {
+	if ctx.Offset+count > ctx.File.Stat.Length {
 		count = ctx.File.Stat.Length - ctx.Offset
 	}
-	response := data[ctx.File.Path][ctx.Offset:ctx.Offset + count]
+	response := data[ctx.File.Path][ctx.Offset : ctx.Offset+count]
 	ctx.Respond(response)
 }
 
-func Write(ctx *go9p.Writecontext) {
+func Write(ctx *go9p.WriteContext) {
 	contents := data[ctx.File.Path]
-	if ctx.Offset + uint64(ctx.Count) > uint64(len(contents)) {
+	if ctx.Offset+uint64(ctx.Count) > uint64(len(contents)) {
 		// Not enough room in contents. Extend.
 		newlen := ctx.Offset + uint64(ctx.Count)
 		ctx.File.Stat.Length = newlen
-		newbuff := make([]byte, newlen - uint64(len(contents)))
+		newbuff := make([]byte, newlen-uint64(len(contents)))
 		contents = append(contents, newbuff...)
 	}
 
@@ -41,7 +41,7 @@ func Write(ctx *go9p.Writecontext) {
 	ctx.Respond(ctx.Count)
 }
 
-func Create(ctx *go9p.Createcontext) {
+func Create(ctx *go9p.CreateContext) {
 	data[ctx.NewPath] = make([]byte, 0)
 	ctx.Respond(0)
 }
@@ -49,11 +49,11 @@ func Create(ctx *go9p.Createcontext) {
 func main() {
 	data = make(map[string][]byte, 0)
 	srv := &go9p.Server{
-		Open: Open,
-		Read: Read,
-		Write: Write,
+		Open:   Open,
+		Read:   Read,
+		Write:  Write,
 		Create: Create,
-		Setup: nil}
+		Setup:  nil}
 	fmt.Println("Starting server...")
 
 	listener, error := net.Listen("tcp", "0.0.0.0:9999")

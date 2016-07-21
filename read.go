@@ -87,7 +87,7 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 		}
 
 		if s.Read != nil {
-			ctx := &Readcontext{
+			ctx := &ReadContext{
 				Ctx{conn, fs, &read.FCall, read.Fid, file},
 				read.Offset,
 				uint32(count)}

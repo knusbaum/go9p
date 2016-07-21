@@ -1,3 +1,12 @@
+// Package go9p is a Go implementation of the 9P2000 protocol.
+// It imlements a parser and composer for 9P2000 messages as well as
+// a server (See the Server type).
+//
+// The server requires users to implement callbacks for certain operations.
+// Open, Read, Write, Create, and Setup. See the docs for the *context structs
+// for explanations of how to appropriately respond to these events.
+//
+// Details of the 9P2000 protocol can be found here: http://knusbaum.inlisp.org/res/rfc9p2000.html
 package go9p
 
 import (
@@ -24,9 +33,8 @@ type Server struct {
 	Setup  func(ctx *Ctx)
 }
 
-// Serve serves the 9P file server srv.
-// see Server
-func Serve(srv *Server) {
+// Serve serves the 9P2000 file server.
+func (srv *Server)Serve(listener net.Listener) {
 
 	var mode uint32
 	var i uint32
@@ -53,12 +61,6 @@ func Serve(srv *Server) {
 	if srv.Setup != nil {
 		ctx := &Ctx{nil, &fs, nil, 0, root}
 		srv.Setup(ctx)
-	}
-
-	listener, error := net.Listen("tcp", "0.0.0.0:9999")
-	if error != nil {
-		fmt.Println("Failed to listen: ", error)
-		return
 	}
 
 	for {

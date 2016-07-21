@@ -43,7 +43,7 @@ func (fs *filesystem) allocQid(qtype uint8) Qid {
 }
 
 func (fs *filesystem) addFile(path string, stat Stat, parent *File) *File {
-	file := &File{path, stat, make([]*File, 0), parent}
+	file := &File{path, stat, parent, make([]*File, 0)}
 	fs.files[path] = file
 	if parent != nil {
 		parent.subfiles = append(parent.subfiles, file)

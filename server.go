@@ -25,7 +25,7 @@ type Server struct {
 }
 
 // Serve serves the 9P file server srv.
-// see Server
+// see <a href="#Server">Server</a>
 func Serve(srv *Server) {
 
 	var mode uint32

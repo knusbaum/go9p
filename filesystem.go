@@ -4,13 +4,15 @@ import (
 	"fmt"
 )
 
+// File - Represents a file in the filesystem.
+// Path - The full path of the file in the filesystem.
+// Stat - The Stat struct associated with the file.
+// Parent - A pointer to the file's parent directory.
 type File struct {
 	Path     string
 	Stat     Stat
-	subfiles []*File
 	Parent   *File
-
-	Contents []byte
+	subfiles []*File
 }
 
 type filesystem struct {
@@ -20,8 +22,8 @@ type filesystem struct {
 
 func (fs *filesystem) dumpFiles() {
 	for k, v := range fs.files {
-		fmt.Println("Path: %s, File.path: %s, len(Contents): %d, cap(Contents): %d\n",
-			k, v.Path, len(v.Contents), cap(v.Contents))
+		fmt.Println("Path: %s, File.path: %s\n",
+			k, v.Path)
 	}
 }
 
@@ -41,7 +43,7 @@ func (fs *filesystem) allocQid(qtype uint8) Qid {
 }
 
 func (fs *filesystem) addFile(path string, stat Stat, parent *File) *File {
-	file := &File{path, stat, make([]*File, 0), parent, make([]byte, 0)}
+	file := &File{path, stat, make([]*File, 0), parent}
 	fs.files[path] = file
 	if parent != nil {
 		parent.subfiles = append(parent.subfiles, file)
@@ -68,6 +70,8 @@ func (fs *filesystem) fileForPath(path string) *File {
 	return fs.files[path]
 }
 
+// Qid - Qids are unique ids for files. Qtype should be the upper
+// 8 bits of the file's permissions (Stat.Mode)
 type Qid struct {
 	Qtype uint8
 	Vers  uint32
@@ -79,6 +83,7 @@ func (qid *Qid) String() string {
 		qid.Qtype, qid.Vers, qid.Uid)
 }
 
+// Parse - Parse a Qid from a slice of a 9P2000 stream
 func (qid *Qid) Parse(buff []byte) ([]byte, error) {
 	if len(buff) == 0 {
 		return nil, &ParseError{"can't parse. Reached end of buffer."}
@@ -89,6 +94,8 @@ func (qid *Qid) Parse(buff []byte) ([]byte, error) {
 	return buff, nil
 }
 
+// Compose - Returns a slice of the Qid serialized to be
+// written out on a 9P2000 stream. 
 func (qid *Qid) Compose() []byte {
 	buff := make([]byte, 13)
 	buffer := buff

@@ -6,6 +6,8 @@
 // Open, Read, Write, Create, and Setup. See the docs for the *context structs
 // for explanations of how to appropriately respond to these events.
 //
+// IFCall, FCall, and all the T* and R* types are internal types used for parsing,
+// etc. They're left exposed if you want to do some less structured 9P programming.
 // Details of the 9P2000 protocol can be found here: http://knusbaum.inlisp.org/res/rfc9p2000.html
 package go9p
 

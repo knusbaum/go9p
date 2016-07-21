@@ -36,6 +36,17 @@ const (
 	rwstat   = 127
 )
 
+// IFCall - the interface that all FCall-like types imlement.
+// String - typical human readable string representation.
+// Parse - Parse the call from a slice.
+// Compose - returns a slice containing the call serialized
+// according the the 9P2000 protocol, ready to be written out
+// to a client.
+// GetFCall() - get the base FCall associated with this
+// call.
+// Reply() - Handles the fcall and calls appropriate functions
+// in Server. Returns nil or an IFCall that should be sent as a
+// response back to the client.
 type IFCall interface {
 	String() string
 	Parse([]byte) ([]byte, error)
@@ -44,6 +55,9 @@ type IFCall interface {
 	Reply(*filesystem, *connection, *Server) IFCall
 }
 
+// FCall - The base FCall type. All FCall-like types embed this
+// and inherit its functions.
+// For explanations of the functions, see IFCall.
 type FCall struct {
 	Ctype uint8
 	Tag   uint16
@@ -69,6 +83,9 @@ func fcParse(fc *FCall, buff []byte) ([]byte, error) {
 	return buff, nil
 }
 
+// ParseCall - Reads from a 9P2000 stream and parses an IFCall from it.
+// On error, the protocol on the stream is in an unknown state and
+// the stream should be closed.
 func ParseCall(r io.Reader) (IFCall, error) {
 	if r == nil {
 		return nil, &ParseError{"nil reader."}
@@ -116,66 +133,66 @@ func ParseCall(r io.Reader) (IFCall, error) {
 	case rerror:
 		call = &RError{}
 		break
-		//	case Tflush:
-		//		call = &TFlush{}
-		//		break
-		//	case Rflush:
-		//		call = &RFlush{}
-		//		break
+	case tflush:
+		call = &TFlush{}
+		break
+	case rflush:
+		call = &RFlush{}
+		break
 	case twalk:
 		call = &TWalk{}
 		break
-		//	case Rwalk:
-		//		call = &RWalk{}
-		//		break
+	case rwalk:
+		call = &RWalk{}
+		break
 	case topen:
 		call = &TOpen{}
 		break
-		//	case Ropen:
-		//		call = &ROpen{}
-		//		break
+	case ropen:
+		call = &ROpen{}
+		break
 	case tcreate:
 		call = &TCreate{}
 		break
-		//	case Rcreate:
-		//		call = &RCreate{}
-		//		break
+	case rcreate:
+		call = &RCreate{}
+		break
 	case tread:
 		call = &TRead{}
 		break
-		//	case Rread:
-		//		call = &RRead{}
-		//		break
+	case rread:
+		call = &RRead{}
+		break
 	case twrite:
 		call = &TWrite{}
 		break
-		//	case Rwrite:
-		//		call = &RWrite{}
-		//		break
+	case rwrite:
+		call = &RWrite{}
+		break
 	case tclunk:
 		call = &TClunk{}
 		break
-		//	case Rclunk:
-		//		call = &RClunk{}
-		//		break
+	case rclunk:
+		call = &RClunk{}
+		break
 	case tremove:
 		call = &TRemove{}
 		break
-		//	case Rremove:
-		//		call = &RRemove{}
-		//		break
+	case rremove:
+		call = &RRemove{}
+		break
 	case tstat:
 		call = &TStat{}
 		break
-		//	case Rstat:
-		//		call = &RStat{}
-		//		break
+	case rstat:
+		call = &RStat{}
+		break
 	case twstat:
 		call = &TWstat{}
 		break
-		//	case Rwstat:
-		//		call = &RWstat{}
-		//		break
+	case rwstat:
+		call = &RWstat{}
+		break
 	default:
 		tag, _ := fromLittleE16(buff)
 		return &RError{FCall{rerror, tag}, "Not Implemented."},

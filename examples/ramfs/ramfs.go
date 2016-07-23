@@ -1,3 +1,8 @@
+// A memory-backed filesystem for storing files.
+// The only special file is /overalloc, which
+// lists the unused space in each file's buffer.
+// Try commenting out the code in the Close function
+// to see how that affects the overallocation numbers.
 package main
 
 import (
@@ -6,14 +11,29 @@ import (
 	"net"
 )
 
+// Path -> data
+// Holds file data associated with a path.
 var data map[string][]byte
+var fidToData map[uint32][]byte
 
 func Open(ctx *go9p.OpenContext) {
+	if ctx.File.Path == "/overalloc" {
+		allocs := make([]byte, 1)
+		for _, buff := range data {
+			diff := fmt.Sprintf("%d\n", cap(buff) - len(buff))
+			allocs = append(allocs, []byte(diff)...)
+		}
+		fidToData[ctx.Fid] = allocs
+	}
 	ctx.Respond()
 }
 
 func Read(ctx *go9p.ReadContext) {
-	ctx.Respond(go9p.SliceForRead(ctx, data[ctx.File.Path]))
+	if ctx.File.Path == "/overalloc" {
+		ctx.Respond(go9p.SliceForRead(ctx, fidToData[ctx.Fid]))
+	} else {
+		ctx.Respond(go9p.SliceForRead(ctx, data[ctx.File.Path]))
+	}
 }
 
 func Write(ctx *go9p.WriteContext) {
@@ -31,19 +51,45 @@ func Write(ctx *go9p.WriteContext) {
 	ctx.Respond(ctx.Count)
 }
 
+func Close(ctx *go9p.Ctx) {
+	// When the user closes the file, let's trim the
+	// extra capacity off the end of the file's buffer
+	// if it's larger than, say, 1KB
+	buffer := data[ctx.File.Path]
+	if buffer != nil && cap(buffer) - len(buffer) > 1000 {
+		newbuff := make([]byte, len(buffer))
+		copy(newbuff, buffer)
+		data[ctx.File.Path] = newbuff
+	}
+}
+
 func Create(ctx *go9p.CreateContext) {
+	// Set up an empty buffer for path.
 	data[ctx.NewPath] = make([]byte, 0)
 	ctx.Respond(0)
 }
 
+func Remove(ctx *go9p.RemoveContext) {
+	delete(data, ctx.File.Path)
+	ctx.Respond()
+}
+
+func Setup(ctx *go9p.UpdateContext) {
+	root := ctx.File
+	ctx.AddFile(0444, 0, "overalloc", "root", root)
+}
+
 func main() {
 	data = make(map[string][]byte, 0)
+	fidToData = make(map[uint32][]byte, 0)
 	srv := &go9p.Server{
 		Open:   Open,
 		Read:   Read,
 		Write:  Write,
+		Close:  Close,
 		Create: Create,
-		Setup:  nil}
+		Remove: Remove,
+		Setup:  Setup}
 	fmt.Println("Starting server...")
 
 	listener, error := net.Listen("tcp", "0.0.0.0:9999")

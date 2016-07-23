@@ -46,7 +46,7 @@ type filesystem struct {
 
 func (fs *filesystem) dumpFiles() {
 	for k, v := range fs.files {
-		fmt.Println("Path: %s, File.path: %s\n",
+		fmt.Printf("Path: %s, File.path: %s\n",
 			k, v.Path)
 	}
 }
@@ -77,6 +77,12 @@ func (fs *filesystem) addFile(path string, stat Stat, parent *File) *File {
 }
 
 func (fs *filesystem) removeFile(file *File) {
+	// Delete all subfiles
+	subfiles := file.ListSubfiles()
+	for _, f := range subfiles {
+		fs.removeFile(f)
+	}
+
 	if file.Parent != nil {
 		// Need to remove this file from its parent's list.
 		parent := file.Parent

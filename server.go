@@ -33,6 +33,7 @@ type Server struct {
 	Write  func(ctx *WriteContext)
 	Close  func(ctx *Ctx)
 	Create func(ctx *CreateContext)
+	Remove func(ctx *RemoveContext)
 	Setup  func(ctx *UpdateContext)
 }
 
@@ -363,4 +364,18 @@ func (ctx *CreateContext) Respond(length uint64) *File {
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 	return newfile
+}
+
+// RemoveContext - The context passed to the Create callback
+// in Server.
+type RemoveContext struct {
+	Ctx
+}
+
+// Respond removes the file
+func (ctx *RemoveContext) Respond() {
+	ctx.fs.removeFile(ctx.File)
+	response := &RRemove{FCall{rremove, ctx.call.Tag}}
+	fmt.Println("<<< ", response)
+	ctx.conn.Conn.Write(response.Compose())
 }

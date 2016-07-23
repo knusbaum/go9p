@@ -6,6 +6,15 @@ Examples are available in examples/ (duh)
 
 Docs available here: http://godoc.org/github.com/knusbaum/go9p
 
+These programs are meant to be used with plan9port's 9pfuse (or some equivalent)
+https://github.com/9fans/plan9port
+
+For example, you would mount the ramfs example with the following command:
+'''
+9pfuse localhost:9999 /mnt/myramfs
+'''
+Then you can copy files to/from the ramfs and do all the other stuff that you'd expect.
+
 This is distributed under the MIT license
 
 ```

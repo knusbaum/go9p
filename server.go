@@ -41,7 +41,7 @@ type incoming struct {
 	call IFCall
 }
 
-func Process9PConnection(conn *connection, ch chan incoming) {
+func process9PConnection(conn *connection, ch chan incoming) {
 	for {
 		fc, err := ParseCall(conn.Conn)
 		if err != nil {
@@ -56,7 +56,7 @@ func Process9PConnection(conn *connection, ch chan incoming) {
 	}
 }
 
-func AcceptNewConnections(listener net.Listener, ch chan *connection) {
+func acceptNewConnections(listener net.Listener, ch chan *connection) {
 	for {
 		fmt.Println("Accepting connections!")
 		go9conn := &connection{}
@@ -103,7 +103,7 @@ func (srv *Server) Serve(listener net.Listener) {
 
 	newConns := make(chan *connection)
 	incomingCalls := make(chan incoming)
-	go AcceptNewConnections(listener, newConns)
+	go acceptNewConnections(listener, newConns)
 
 	for {
 		select {
@@ -112,7 +112,7 @@ func (srv *Server) Serve(listener net.Listener) {
 				// Stop serving immediately. (add some cleanup here later)
 				return
 			}
-			go Process9PConnection(conn, incomingCalls)
+			go process9PConnection(conn, incomingCalls)
 
 		case incoming := <-incomingCalls:
 			conn := incoming.conn
@@ -135,7 +135,7 @@ func (srv *Server) Serve(listener net.Listener) {
 
 // Ctx is the base context. All other contexts
 // embed this type and therefore inherit the Fail()
-// and AddFile() functions.
+// and UpdateFS() functions.
 //
 // Fid is the file descriptor on which the request
 // is operating.
@@ -170,6 +170,12 @@ func (ctx *Ctx) Username() string {
 	return ""
 }
 
+// UpdateFS runs the argument function, passing it an update context
+// so that it can make modifications to the filesystem.
+// fn is not run immediately, but passed to the main routine.
+// This removes the need for synchronization. You can be sure
+// that only one routine is modifying the filesystem structure at
+// any one time.
 func (ctx *Ctx) UpdateFS(fn func(*UpdateContext)) {
 	// This needs to execute in its own goroutine
 	// since UpdateFS can be called in the main thread
@@ -181,6 +187,9 @@ func (ctx *Ctx) UpdateFS(fn func(*UpdateContext)) {
 	}()
 }
 
+// UpdateContext is the context given to functions passed to UpdateFS.
+// UpdateContext has functions that allow a user to modify the filesystem,
+// adding, removing files, etc.
 type UpdateContext struct {
 	Ctx
 }
@@ -223,6 +232,7 @@ func (ctx *UpdateContext) AddFile(mode uint32, length uint64, name string, owner
 		parent)
 }
 
+// RemoveFile - Remove a file from the filesystem.
 func (ctx *UpdateContext) RemoveFile(f *File) {
 	ctx.fs.removeFile(f)
 }
@@ -264,6 +274,10 @@ func (ctx *ReadContext) Respond(data []byte) {
 	ctx.conn.Conn.Write(response.Compose())
 }
 
+// SliceForRead - Given a read context and a slice representing the full file contents,
+// return a slice at offset ctx.Offset of ctx.Count bytes. Handles cases where file is
+// nil, offset + count > len(file), etc. The return value is ready to be passed to
+// ctx.Respond.
 func SliceForRead(ctx *ReadContext, file []byte) []byte {
 	flen := uint64(len(file))
 

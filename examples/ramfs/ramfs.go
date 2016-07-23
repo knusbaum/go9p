@@ -13,17 +13,7 @@ func Open(ctx *go9p.OpenContext) {
 }
 
 func Read(ctx *go9p.ReadContext) {
-	if ctx.Offset >= ctx.File.Stat.Length {
-		ctx.Respond(nil)
-		return
-	}
-
-	count := uint64(ctx.Count)
-	if ctx.Offset+count > ctx.File.Stat.Length {
-		count = ctx.File.Stat.Length - ctx.Offset
-	}
-	response := data[ctx.File.Path][ctx.Offset : ctx.Offset+count]
-	ctx.Respond(response)
+	ctx.Respond(go9p.SliceForRead(ctx, data[ctx.File.Path]))
 }
 
 func Write(ctx *go9p.WriteContext) {

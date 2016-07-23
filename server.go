@@ -31,8 +31,44 @@ type Server struct {
 	Open   func(ctx *OpenContext)
 	Read   func(ctx *ReadContext)
 	Write  func(ctx *WriteContext)
+	Close  func(ctx *Ctx)
 	Create func(ctx *CreateContext)
-	Setup  func(ctx *Ctx)
+	Setup  func(ctx *UpdateContext)
+}
+
+type incoming struct {
+	conn *connection
+	call IFCall
+}
+
+func Process9PConnection(conn *connection, ch chan incoming) {
+	for {
+		fc, err := ParseCall(conn.Conn)
+		if err != nil {
+			fmt.Println("Failed to parse call: ", err)
+			if fc != nil {
+				conn.Conn.Write(fc.Compose())
+				continue
+			}
+			return
+		}
+		ch <- incoming{conn, fc}
+	}
+}
+
+func AcceptNewConnections(listener net.Listener, ch chan *connection) {
+	for {
+		fmt.Println("Accepting connections!")
+		go9conn := &connection{}
+		err := go9conn.accept(listener)
+		if err != nil {
+			fmt.Println("Failed to accept: ", err)
+			close(ch)
+			return
+		}
+		fmt.Println("Putting new conn on channel.")
+		ch <- go9conn
+	}
 }
 
 // Serve serves the 9P2000 file server.
@@ -61,35 +97,38 @@ func (srv *Server) Serve(listener net.Listener) {
 		nil)
 
 	if srv.Setup != nil {
-		ctx := &Ctx{nil, &fs, nil, 0, root}
+		ctx := &UpdateContext{Ctx{nil, &fs, nil, 0, root}}
 		srv.Setup(ctx)
 	}
 
+	newConns := make(chan *connection)
+	incomingCalls := make(chan incoming)
+	go AcceptNewConnections(listener, newConns)
+
 	for {
-		go9conn := connection{}
-		err := go9conn.accept(listener)
-
-		if err != nil {
-			fmt.Println("Failed to accept: ", err)
-			return
-		}
-		for {
-			fc, err := ParseCall(go9conn.Conn)
-			if err != nil {
-				fmt.Println("Failed to parse call: ", err)
-				if fc != nil {
-					go9conn.Conn.Write(fc.Compose())
-					continue
-				}
-				break
+		select {
+		case conn := <-newConns:
+			if conn == nil {
+				// Stop serving immediately. (add some cleanup here later)
+				return
 			}
+			go Process9PConnection(conn, incomingCalls)
 
+		case incoming := <-incomingCalls:
+			conn := incoming.conn
+			fc := incoming.call
 			fmt.Println(">>> ", fc)
-			reply := fc.Reply(&fs, &go9conn, srv)
+			reply := fc.Reply(&fs, conn, srv)
 			if reply != nil {
 				fmt.Println("<<< ", reply)
-				go9conn.Conn.Write(reply.Compose())
+				conn.Conn.Write(reply.Compose())
 			}
+
+		case update := <- fs.updateChan:
+			fmt.Println("About to execute update fn.")
+			uctx := &UpdateContext{*update.originalCtx}
+			update.fn(uctx)
+			uctx.conn.setDirContents(uctx.Fid, uctx.File.composeSubfiles())
 		}
 	}
 }
@@ -122,6 +161,30 @@ func (ctx *Ctx) Fail(s string) {
 	ctx.conn.Conn.Write(response.Compose())
 }
 
+// Username - Returns the user associated with the action.
+// This will be the empty string on Setup - no user has connected.
+func (ctx *Ctx) Username() string {
+	if ctx.conn != nil {
+		return ctx.conn.uname
+	}
+	return ""
+}
+
+func (ctx *Ctx) UpdateFS(fn func(*UpdateContext)) {
+	// This needs to execute in its own goroutine
+	// since UpdateFS can be called in the main thread
+	// and cause deadlock if updateChan is full.
+	go func() {
+		fmt.Println("Enqueueing update fn")
+		ctx.fs.updateChan <- update{ctx, fn}
+		fmt.Println("Done Enqueueing update fn")
+	}()
+}
+
+type UpdateContext struct {
+	Ctx
+}
+
 // AddFile - Use this function to add a file to the server.
 // mode - The mode for the new file
 // length - The length of the new file
@@ -129,7 +192,7 @@ func (ctx *Ctx) Fail(s string) {
 // owner - The owner of the new file
 // parent - The directory that the file will be created under.
 // This function returns a pointer to the newly created file.
-func (ctx *Ctx) AddFile(mode uint32, length uint64, name string, owner string, parent *File) *File {
+func (ctx *UpdateContext) AddFile(mode uint32, length uint64, name string, owner string, parent *File) *File {
 	if parent == nil {
 		return nil
 	}
@@ -160,13 +223,8 @@ func (ctx *Ctx) AddFile(mode uint32, length uint64, name string, owner string, p
 		parent)
 }
 
-// Username - Returns the user associated with the action.
-// This will be the empty string on Setup - no user has connected.
-func (ctx *Ctx) Username() string {
-	if ctx.conn != nil {
-		return ctx.conn.uname
-	}
-	return ""
+func (ctx *UpdateContext) RemoveFile(f *File) {
+	ctx.fs.removeFile(f)
 }
 
 // OpenContext - The context passed to the Open callback
@@ -183,6 +241,7 @@ type OpenContext struct {
 // Respond - Tells the client the open operation was successful.
 func (ctx *OpenContext) Respond() {
 	ctx.conn.setFidOpenmode(ctx.Fid, ctx.Mode)
+	ctx.conn.setFidOpenoffset(ctx.Fid, ctx.File.Stat.Length)
 	response := &ROpen{FCall{ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
@@ -203,6 +262,25 @@ func (ctx *ReadContext) Respond(data []byte) {
 	response := &RRead{FCall{rread, ctx.call.Tag}, uint32(len(data)), data}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
+}
+
+func SliceForRead(ctx *ReadContext, file []byte) []byte {
+	flen := uint64(len(file))
+
+	if file == nil {
+		return nil
+	}
+	if ctx.Offset >= flen {
+		return nil
+	}
+
+	count := uint64(ctx.Count)
+	if ctx.Offset + count > flen {
+		count = flen - ctx.Offset
+	}
+
+	response := file[ctx.Offset : ctx.Offset + count]
+	return response
 }
 
 // WriteContext - The context passed to the Write callback

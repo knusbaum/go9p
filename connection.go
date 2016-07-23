@@ -28,6 +28,7 @@ func (info *fidInfo) String() string {
 type connection struct {
 	Conn  net.Conn
 	fids  map[uint32]*fidInfo
+	dirContents map[uint32][]byte // Fid -> serialized directory contents
 	uname string
 }
 
@@ -70,6 +71,14 @@ func (conn *connection) setFidPath(fid uint32, path string) {
 		conn.fids = make(map[uint32]*fidInfo, 1)
 	}
 	conn.fids[fid] = &fidInfo{path, None, 0}
+}
+
+func (conn *connection) setDirContents(fid uint32, data []byte) {
+	if conn.dirContents == nil {
+		conn.dirContents = make(map[uint32][]byte)
+	}
+
+	conn.dirContents[fid] = data
 }
 
 func (conn *connection) accept(l net.Listener) error {

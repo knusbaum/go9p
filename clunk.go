@@ -37,6 +37,12 @@ func (clunk *TClunk) Compose() []byte {
 
 func (clunk *TClunk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	delete(conn.fids, clunk.Fid)
+	delete(conn.dirContents, clunk.Fid)
+	if s.Close != nil {
+		file := fs.fileForPath(conn.pathForFid(clunk.Fid))
+		ctx := &Ctx{conn, fs, &clunk.FCall, clunk.Fid, file}
+		s.Close(ctx)
+	}
 	return &RClunk{FCall{rclunk, clunk.Tag}}
 }
 

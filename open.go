@@ -67,18 +67,20 @@ func (open *TOpen) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 			(open.Mode&0x0F) == Ordwr {
 			return &RError{FCall{rerror, open.Tag}, "Cannot write to directory."}
 		}
-		conn.setFidOpenmode(open.Fid, open.Mode)
-		conn.setFidOpenoffset(open.Fid, file.Stat.Length)
-		return &ROpen{FCall{ropen, open.Tag}, file.Stat.Qid, iounit}
-	} else {
-		if s.Open != nil {
-			ctx := &OpenContext{Ctx{conn, fs, &open.FCall, open.Fid, file}, open.Mode}
-			s.Open(ctx)
-		} else {
-			return &RError{FCall{rerror, open.Tag}, "Open not implemented."}
-		}
-		return nil
 	}
+
+	if s.Open != nil {
+		ctx := &OpenContext{Ctx{conn, fs, &open.FCall, open.Fid, file}, open.Mode}
+		s.Open(ctx)
+		if file.Stat.Mode & (1 << 31) != 0 {
+			// If this is a directory, write out all subfile stats now so we have a consistent
+			// view of the directory throughout the life of the Fid
+			conn.setDirContents(open.Fid, file.composeSubfiles())
+		}
+	} else {
+		return &RError{FCall{rerror, open.Tag}, "Open not implemented."}
+	}
+	return nil
 }
 
 type ROpen struct {

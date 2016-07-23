@@ -15,9 +15,33 @@ type File struct {
 	subfiles []*File
 }
 
+func (f *File)IsDirectory() bool {
+	return f.Stat.Mode & (1 << 31) != 0
+}
+
+func (f *File)ListSubfiles() []*File {
+	ret := make([]*File, len(f.subfiles))
+	copy(ret, f.subfiles)
+	return ret
+}
+
+func (f *File)composeSubfiles() []byte{
+	contents := make([]byte, 0)
+	for _, sf := range f.subfiles {
+		contents = append(contents, sf.Stat.Compose()...)
+	}
+	return contents
+}
+
+type update struct {
+	originalCtx *Ctx
+	fn func(*UpdateContext)
+}
+
 type filesystem struct {
 	files   map[string]*File /* path -> *File */
 	currUid uint64
+	updateChan chan update
 }
 
 func (fs *filesystem) dumpFiles() {
@@ -30,6 +54,7 @@ func (fs *filesystem) dumpFiles() {
 func initializeFs() filesystem {
 	fs := filesystem{}
 	fs.files = make(map[string]*File, 1)
+	fs.updateChan = make(chan update)
 	return fs
 }
 
@@ -95,7 +120,7 @@ func (qid *Qid) Parse(buff []byte) ([]byte, error) {
 }
 
 // Compose - Returns a slice of the Qid serialized to be
-// written out on a 9P2000 stream. 
+// written out on a 9P2000 stream.
 func (qid *Qid) Compose() []byte {
 	buff := make([]byte, 13)
 	buffer := buff

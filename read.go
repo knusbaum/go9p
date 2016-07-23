@@ -59,11 +59,7 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	}
 
 	if file.Stat.Mode&(1<<31) != 0 {
-		// It's a directory!
-		contents := make([]byte, 0)
-		for _, f := range file.subfiles {
-			contents = append(contents, f.Stat.Compose()...)
-		}
+		contents := conn.dirContents[read.Fid]
 
 		var count uint64 = 0
 		if read.Offset+uint64(read.Count) > uint64(len(contents)) {
@@ -79,12 +75,7 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 
 		return &RRead{FCall{rread, read.Tag}, uint32(count), data}
 	} else {
-		var count uint64 = 0
-		if read.Offset+uint64(read.Count) > uint64(file.Stat.Length) {
-			count = uint64(file.Stat.Length) - read.Offset
-		} else {
-			count = uint64(read.Count)
-		}
+		count := uint64(read.Count)
 
 		if s.Read != nil {
 			ctx := &ReadContext{
@@ -96,18 +87,6 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 			return &RError{FCall{rerror, read.Tag}, "Read not implemented."}
 		}
 		return nil
-		//		var count uint64 = 0
-		//		if read.Offset + uint64(read.Count) > uint64(file.Stat.Length) {
-		//			count = uint64(file.Stat.Length) - read.Offset
-		//		} else {
-		//			count = uint64(read.Count)
-		//		}
-		//
-		//		data := make([]byte, count)
-		//		if count > 0 {
-		//			copy(data, file.Contents[read.Offset:read.Offset+count])
-		//		}
-		//		return &RRead{FCall{Rread, read.Tag}, uint32(count), data}
 	}
 }
 

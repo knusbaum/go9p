@@ -29,6 +29,7 @@ type connection struct {
 	Conn  net.Conn
 	fids  map[uint32]*fidInfo
 	dirContents map[uint32][]byte // Fid -> serialized directory contents
+	readCalled map[uint32]bool
 	uname string
 }
 
@@ -79,6 +80,13 @@ func (conn *connection) setDirContents(fid uint32, data []byte) {
 	}
 
 	conn.dirContents[fid] = data
+}
+
+func (conn *connection) getReadCalled() map[uint32]bool {
+	if conn.readCalled == nil {
+		conn.readCalled = make(map[uint32]bool, 0)
+	}
+	return conn.readCalled
 }
 
 func (conn *connection) accept(l net.Listener) error {

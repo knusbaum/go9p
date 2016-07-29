@@ -69,6 +69,19 @@ func (walk *TWalk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 		//return &RError{FCall{walk.Ctype, walk.Tag}, "No such file."}
 	}
 
+	// Special case for ..
+	if walk.Nwname > 0 && walk.Wname[0] == ".." {
+
+		if file.Parent != nil {
+			conn.setFidPath(walk.Newfid, file.Parent.Path)
+			qids := make([]Qid, 1)
+			qids[0] = file.Parent.Stat.Qid
+			return &RWalk{FCall{rwalk, walk.Tag}, 1, qids}
+		} else {
+			return &RWalk{FCall{rwalk, walk.Tag}, 0, nil}
+		}
+	}
+	
 	qids := make([]Qid, 0)
 	path := file.Path
 	for i := 0; i < int(walk.Nwname); i++ {

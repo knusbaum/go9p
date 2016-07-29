@@ -28,12 +28,13 @@ import (
 // Setup is called once the server is up and running, and is
 // the appropriate place to add any initial files to the server.
 type Server struct {
-	Open   func(ctx *OpenContext)
-	Read   func(ctx *ReadContext)
-	Write  func(ctx *WriteContext)
-	Close  func(ctx *Ctx)
-	Create func(ctx *CreateContext)
-	Setup  func(ctx *UpdateContext)
+	Open    func(ctx *OpenContext)
+	Read    func(ctx *ReadContext)
+	DirRead func(ctx *DirReadContext) // CANNOT SPAWN GOROUTINES USING UPDATE CONTEXT!
+	Write   func(ctx *WriteContext)
+	Close   func(ctx *Ctx)
+	Create  func(ctx *CreateContext)
+	Setup   func(ctx *UpdateContext)
 }
 
 type incoming struct {
@@ -125,7 +126,6 @@ func (srv *Server) Serve(listener net.Listener) {
 			}
 
 		case update := <- fs.updateChan:
-			fmt.Println("About to execute update fn.")
 			uctx := &UpdateContext{*update.originalCtx}
 			update.fn(uctx)
 			uctx.conn.setDirContents(uctx.Fid, uctx.File.composeSubfiles())
@@ -168,6 +168,10 @@ func (ctx *Ctx) Username() string {
 		return ctx.conn.uname
 	}
 	return ""
+}
+
+func (ctx *Ctx) FileByPath(path string) *File {
+	return ctx.fs.files[path]
 }
 
 // UpdateFS runs the argument function, passing it an update context
@@ -252,6 +256,11 @@ type OpenContext struct {
 func (ctx *OpenContext) Respond() {
 	ctx.conn.setFidOpenmode(ctx.Fid, ctx.Mode)
 	ctx.conn.setFidOpenoffset(ctx.Fid, ctx.File.Stat.Length)
+	if ctx.File.Stat.Mode & (1 << 31) != 0 {
+		// If this is a directory, write out all subfile stats now so we have a consistent
+		// view of the directory throughout the life of the Fid
+		ctx.conn.setDirContents(ctx.Fid, ctx.File.composeSubfiles())
+	}
 	response := &ROpen{FCall{ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
@@ -270,6 +279,23 @@ type ReadContext struct {
 // Respond - Sends requested data back to the client.
 func (ctx *ReadContext) Respond(data []byte) {
 	response := &RRead{FCall{rread, ctx.call.Tag}, uint32(len(data)), data}
+	fmt.Println("<<< ", response)
+	ctx.conn.Conn.Write(response.Compose())
+}
+
+type DirReadContext struct {
+	Ctx
+	read *TRead
+}
+
+// Respond - Marks the directory ready for read by the client.
+func (ctx *DirReadContext) Respond() {
+	if ctx.File.Stat.Mode & (1 << 31) != 0 {
+		// If this is a directory, write out all subfile stats now so we have a consistent
+		// view of the directory throughout the life of the Fid
+		ctx.conn.setDirContents(ctx.Fid, ctx.File.composeSubfiles())
+	}
+	response := doDirRead(ctx.read, ctx.File, ctx.conn)
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }

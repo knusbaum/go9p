@@ -41,6 +41,57 @@ func (read *TRead) Compose() []byte {
 	return buff
 }
 
+func doDirRead(read *TRead, file *File, conn *connection) *RRead{
+	
+	contents := make([]byte, 0)
+	files := file.subfiles
+	fmt.Printf("Have %d subfiles.\n", len(files))
+	var length uint64 = 0
+	startOffset := -1
+	//i := 0
+	for i := range files {
+		nextLength := uint64(files[i].Stat.ComposeLength())
+		if length + nextLength > read.Offset {
+			startOffset = i
+			break
+		}
+		length = length + nextLength
+	}
+
+	fmt.Println("Start Offset:", startOffset)
+	
+	if startOffset < 0 {
+		return &RRead{FCall{rread, read.Tag}, 0, nil}
+	}
+
+	for _, f := range files[startOffset:] {
+		nextLength := uint32(f.Stat.ComposeLength())
+		if uint32(len(contents)) + nextLength > read.Count {
+			break
+		}
+		contents = append(contents, f.Stat.Compose()...)
+	}
+	
+//	var count uint64 = 0
+//	if read.Offset+uint64(read.Count) > uint64(len(contents)) {
+//		count = uint64(len(contents)) - read.Offset
+//	} else {
+//		count = uint64(read.Count)
+//	}
+//
+//	fmt.Println("Contents len:", len(contents))
+//	fmt.Println("Offset:", read.Offset, "Count:", count)
+//	data := make([]byte, count)
+//	if count > 0 {
+//		fmt.Println("Contents len:", len(contents))
+//		fmt.Println("Offset:", read.Offset, "Count:", count)
+//		fmt.Println("Data len:", len(data))
+//		copy(data, contents[read.Offset:read.Offset+count])
+//	}
+	
+	return &RRead{FCall{rread, read.Tag}, uint32(len(contents)), contents}
+}
+
 func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	if read.Count > iounit {
 		return &RError{FCall{rerror, read.Tag}, "Read size too large."}
@@ -59,21 +110,20 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	}
 
 	if file.Stat.Mode&(1<<31) != 0 {
-		contents := conn.dirContents[read.Fid]
-
-		var count uint64 = 0
-		if read.Offset+uint64(read.Count) > uint64(len(contents)) {
-			count = uint64(len(contents)) - read.Offset
+		// This is a directory.
+		if s.DirRead != nil && conn.readCalled[read.Fid] == false {
+			// If the user has hooked the DirRead event, run that. (only on first read message)
+			ctx := &DirReadContext{Ctx{conn, fs, &read.FCall, read.Fid, file}, read}
+			// DirReadContext.Respond() will call doDirRead.
+			s.DirRead(ctx)
+			conn.getReadCalled()[read.Fid] = true
+			return nil
 		} else {
-			count = uint64(read.Count)
+			// Otherwise return the RRead right away.
+			conn.getReadCalled()[read.Fid] = true
+			return doDirRead(read, file, conn)
 		}
-
-		data := make([]byte, count)
-		if count > 0 {
-			copy(data, contents[read.Offset:count])
-		}
-
-		return &RRead{FCall{rread, read.Tag}, uint32(count), data}
+		
 	} else {
 		count := uint64(read.Count)
 
@@ -83,10 +133,12 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 				read.Offset,
 				uint32(count)}
 			s.Read(ctx)
+			conn.getReadCalled()[read.Fid] = true
+			return nil
 		} else {
+			conn.getReadCalled()[read.Fid] = true
 			return &RError{FCall{rerror, read.Tag}, "Read not implemented."}
 		}
-		return nil
 	}
 }
 

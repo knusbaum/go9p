@@ -44,11 +44,14 @@ func (remove *TRemove) Reply(fs *filesystem, conn *connection, s *Server) IFCall
 		return &RError{FCall{rerror, remove.Tag}, "Permission denied."}
 	}
 
-	fs.removeFile(file)
+	if s.Remove != nil {
+		ctx := &RemoveContext{Ctx{conn, fs, &remove.FCall, remove.Fid, file}}
+		s.Remove(ctx)
+	} else {
+		return &RError{FCall{rerror, remove.Tag}, "Remove not implemented."}
+	}
 
-	fs.dumpFiles()
-
-	return &RRemove{FCall{rremove, remove.Tag}}
+	return nil
 }
 
 type RRemove struct {

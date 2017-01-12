@@ -48,7 +48,7 @@ func (auth *TAuth) Compose() []byte {
 
 func (auth *TAuth) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	reply := RError{}
-	reply.Ctype = rerror
+	reply.Ctype = Rerror
 	reply.Tag = auth.Tag
 	reply.Ename = "Not Enabled."
 	return &reply

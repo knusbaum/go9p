@@ -6,34 +6,34 @@ import (
 )
 
 const (
-	tversion = 100
-	rversion = 101
-	tauth    = 102
-	rauth    = 103
-	tattach  = 104
-	rattach  = 105
-	terror   = 106 /* illegal */
-	rerror   = 107
-	tflush   = 108
-	rflush   = 109
-	twalk    = 110
-	rwalk    = 111
-	topen    = 112
-	ropen    = 113
-	tcreate  = 114
-	rcreate  = 115
-	tread    = 116
-	rread    = 117
-	twrite   = 118
-	rwrite   = 119
-	tclunk   = 120
-	rclunk   = 121
-	tremove  = 122
-	rremove  = 123
-	tstat    = 124
-	rstat    = 125
-	twstat   = 126
-	rwstat   = 127
+	Tversion = 100
+	Rversion = 101
+	Tauth    = 102
+	Rauth    = 103
+	Tattach  = 104
+	Rattach  = 105
+	Terror   = 106 /* illegal */
+	Rerror   = 107
+	Tflush   = 108
+	Rflush   = 109
+	Twalk    = 110
+	Rwalk    = 111
+	Topen    = 112
+	Ropen    = 113
+	Tcreate  = 114
+	Rcreate  = 115
+	Tread    = 116
+	Rread    = 117
+	Twrite   = 118
+	Rwrite   = 119
+	Tclunk   = 120
+	Rclunk   = 121
+	Tremove  = 122
+	Rremove  = 123
+	Tstat    = 124
+	Rstat    = 125
+	Twstat   = 126
+	Rwstat   = 127
 )
 
 // IFCall - the interface that all FCall-like types imlement.
@@ -112,90 +112,90 @@ func ParseCall(r io.Reader) (IFCall, error) {
 	var call IFCall
 
 	switch ctype {
-	case tversion:
+	case Tversion:
 		call = &TRVersion{}
 		break
-	case rversion:
+	case Rversion:
 		call = &TRVersion{}
 		break
-	case tauth:
+	case Tauth:
 		call = &TAuth{}
 		break
-	case rauth:
+	case Rauth:
 		call = &RAuth{}
 		break
-	case tattach:
+	case Tattach:
 		call = &TAttach{}
 		break
-	case rattach:
+	case Rattach:
 		call = &RAttach{}
 		break
-	case rerror:
+	case Rerror:
 		call = &RError{}
 		break
-	case tflush:
+	case Tflush:
 		call = &TFlush{}
 		break
-	case rflush:
+	case Rflush:
 		call = &RFlush{}
 		break
-	case twalk:
+	case Twalk:
 		call = &TWalk{}
 		break
-	case rwalk:
+	case Rwalk:
 		call = &RWalk{}
 		break
-	case topen:
+	case Topen:
 		call = &TOpen{}
 		break
-	case ropen:
+	case Ropen:
 		call = &ROpen{}
 		break
-	case tcreate:
+	case Tcreate:
 		call = &TCreate{}
 		break
-	case rcreate:
+	case Rcreate:
 		call = &RCreate{}
 		break
-	case tread:
+	case Tread:
 		call = &TRead{}
 		break
-	case rread:
+	case Rread:
 		call = &RRead{}
 		break
-	case twrite:
+	case Twrite:
 		call = &TWrite{}
 		break
-	case rwrite:
+	case Rwrite:
 		call = &RWrite{}
 		break
-	case tclunk:
+	case Tclunk:
 		call = &TClunk{}
 		break
-	case rclunk:
+	case Rclunk:
 		call = &RClunk{}
 		break
-	case tremove:
+	case Tremove:
 		call = &TRemove{}
 		break
-	case rremove:
+	case Rremove:
 		call = &RRemove{}
 		break
-	case tstat:
+	case Tstat:
 		call = &TStat{}
 		break
-	case rstat:
+	case Rstat:
 		call = &RStat{}
 		break
-	case twstat:
+	case Twstat:
 		call = &TWstat{}
 		break
-	case rwstat:
+	case Rwstat:
 		call = &RWstat{}
 		break
 	default:
 		tag, _ := fromLittleE16(buff)
-		return &RError{FCall{rerror, tag}, "Not Implemented."},
+		return &RError{FCall{Rerror, tag}, "Not Implemented."},
 			&ParseError{fmt.Sprintf("Not implemented: %d", ctype)}
 	}
 

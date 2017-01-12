@@ -53,11 +53,11 @@ func (create *TCreate) Compose() []byte {
 func (create *TCreate) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(create.Fid))
 	if file == nil {
-		return &RError{FCall{rerror, create.Tag}, "No such file."}
+		return &RError{FCall{Rerror, create.Tag}, "No such file."}
 	}
 
 	if !openPermission(conn.uname, file, Owrite) {
-		return &RError{FCall{rerror, create.Tag}, "Permission denied."}
+		return &RError{FCall{Rerror, create.Tag}, "Permission denied."}
 	}
 
 	path := ""
@@ -76,7 +76,7 @@ func (create *TCreate) Reply(fs *filesystem, conn *connection, s *Server) IFCall
 			create.Mode}
 		s.Create(ctx)
 	} else {
-		return &RError{FCall{rerror, create.Tag}, "Create not implemented."}
+		return &RError{FCall{Rerror, create.Tag}, "Create not implemented."}
 	}
 	return nil
 	//	newfile :=

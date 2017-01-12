@@ -46,7 +46,7 @@ func (clunk *TClunk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 		ctx := &Ctx{conn, fs, &clunk.FCall, clunk.Fid, file}
 		s.Close(ctx)
 	}
-	return &RClunk{FCall{rclunk, clunk.Tag}}
+	return &RClunk{FCall{Rclunk, clunk.Tag}}
 }
 
 type RClunk struct {

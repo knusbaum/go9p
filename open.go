@@ -49,23 +49,23 @@ func (open *TOpen) Compose() []byte {
 func (open *TOpen) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(open.Fid))
 	if file == nil {
-		return &RError{FCall{rerror, open.Tag}, "No such file."}
+		return &RError{FCall{Rerror, open.Tag}, "No such file."}
 	}
 
 	openmode := conn.getFidOpenmode(open.Fid)
 
 	if openmode != None {
-		return &RError{FCall{rerror, open.Tag}, "Fid already open."}
+		return &RError{FCall{Rerror, open.Tag}, "Fid already open."}
 	}
 	if !openPermission(conn.uname, file, open.Mode&0x0F) {
-		return &RError{FCall{rerror, open.Tag}, "Permission denied."}
+		return &RError{FCall{Rerror, open.Tag}, "Permission denied."}
 	}
 
 	if file.Stat.Mode&(1<<31) != 0 {
 		// This is a directory.
 		if (open.Mode&0x0F) == Owrite ||
 			(open.Mode&0x0F) == Ordwr {
-			return &RError{FCall{rerror, open.Tag}, "Cannot write to directory."}
+			return &RError{FCall{Rerror, open.Tag}, "Cannot write to directory."}
 		}
 	}
 
@@ -75,12 +75,12 @@ func (open *TOpen) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	} else {
 		conn.setFidOpenmode(open.Fid, open.Mode)
 		conn.setFidOpenoffset(open.Fid, file.Stat.Length)
-		if file.Stat.Mode & (1 << 31) != 0 {
+		if file.Stat.Mode&(1<<31) != 0 {
 			// If this is a directory, write out all subfile stats now so we have a consistent
 			// view of the directory throughout the life of the Fid
 			conn.setDirContents(open.Fid, file.composeSubfiles())
 		}
-		return &ROpen{FCall{ropen, open.Tag}, file.Stat.Qid, iounit}
+		return &ROpen{FCall{Ropen, open.Tag}, file.Stat.Qid, iounit}
 	}
 	return nil
 }

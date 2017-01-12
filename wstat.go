@@ -87,7 +87,7 @@ func (wstat *TWstat) Compose() []byte {
 func (wstat *TWstat) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(wstat.Fid))
 	if file == nil {
-		return &RError{FCall{rerror, wstat.Tag}, "No such file."}
+		return &RError{FCall{Rerror, wstat.Tag}, "No such file."}
 	}
 
 	var stat *Stat
@@ -103,28 +103,28 @@ func (wstat *TWstat) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 		if len(newstat.Name) != 0 {
 			if relation != ugo_user {
 				fmt.Println("Can't change name. Not owner.")
-				return &RError{FCall{rerror, wstat.Tag}, "Permission denied."}
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
 			}
 		}
 
 		if newstat.Length != math.MaxUint64 {
 			if !openPermission(conn.uname, file, Owrite) {
 				fmt.Println("Can't alter length. Don't have write permission.")
-				return &RError{FCall{rerror, wstat.Tag}, "Permission denied."}
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
 			}
 		}
 
 		if newstat.Mode != math.MaxUint32 {
 			if relation != ugo_user {
 				fmt.Println("Can't alter mode. Not owner.")
-				return &RError{FCall{rerror, wstat.Tag}, "Permission denied."}
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
 			}
 		}
 
 		if newstat.Mtime != math.MaxUint32 {
 			if relation != ugo_user {
 				fmt.Println("Can't alter mtime. Not owner.")
-				return &RError{FCall{rerror, wstat.Tag}, "Permission denied."}
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
 			}
 		}
 
@@ -132,7 +132,7 @@ func (wstat *TWstat) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 			if file.Stat.Uid != conn.uname ||
 				!userInGroup(conn.uname, newstat.Gid) {
 				fmt.Println("Can't changegroup. Not owner or not member of new group.")
-				return &RError{FCall{rerror, wstat.Tag}, "Permission denied."}
+				return &RError{FCall{Rerror, wstat.Tag}, "Permission denied."}
 			}
 		}
 	}
@@ -159,7 +159,7 @@ func (wstat *TWstat) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 		stat.Gid = newstat.Gid
 	}
 
-	return &RWstat{FCall{rwstat, wstat.Tag}}
+	return &RWstat{FCall{Rwstat, wstat.Tag}}
 }
 
 type RWstat struct {

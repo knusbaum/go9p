@@ -126,7 +126,7 @@ func (srv *Server) Serve(listener net.Listener) {
 				conn.Conn.Write(reply.Compose())
 			}
 
-		case update := <- fs.updateChan:
+		case update := <-fs.updateChan:
 			uctx := &UpdateContext{*update.originalCtx}
 			update.fn(uctx)
 			uctx.conn.setDirContents(uctx.Fid, uctx.File.composeSubfiles())
@@ -157,7 +157,7 @@ type Ctx struct {
 // be fulfilled. The string is passed to the client as
 // an explanation of the failure that occurred.
 func (ctx *Ctx) Fail(s string) {
-	response := &RError{FCall{rerror, ctx.call.Tag}, s}
+	response := &RError{FCall{Rerror, ctx.call.Tag}, s}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
@@ -257,12 +257,12 @@ type OpenContext struct {
 func (ctx *OpenContext) Respond() {
 	ctx.conn.setFidOpenmode(ctx.Fid, ctx.Mode)
 	ctx.conn.setFidOpenoffset(ctx.Fid, ctx.File.Stat.Length)
-	if ctx.File.Stat.Mode & (1 << 31) != 0 {
+	if ctx.File.Stat.Mode&(1<<31) != 0 {
 		// If this is a directory, write out all subfile stats now so we have a consistent
 		// view of the directory throughout the life of the Fid
 		ctx.conn.setDirContents(ctx.Fid, ctx.File.composeSubfiles())
 	}
-	response := &ROpen{FCall{ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
+	response := &ROpen{FCall{Ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
@@ -279,7 +279,7 @@ type ReadContext struct {
 
 // Respond - Sends requested data back to the client.
 func (ctx *ReadContext) Respond(data []byte) {
-	response := &RRead{FCall{rread, ctx.call.Tag}, uint32(len(data)), data}
+	response := &RRead{FCall{Rread, ctx.call.Tag}, uint32(len(data)), data}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
@@ -291,7 +291,7 @@ type DirReadContext struct {
 
 // Respond - Marks the directory ready for read by the client.
 func (ctx *DirReadContext) Respond() {
-	if ctx.File.Stat.Mode & (1 << 31) != 0 {
+	if ctx.File.Stat.Mode&(1<<31) != 0 {
 		// If this is a directory, write out all subfile stats now so we have a consistent
 		// view of the directory throughout the life of the Fid
 		ctx.conn.setDirContents(ctx.Fid, ctx.File.composeSubfiles())
@@ -316,11 +316,11 @@ func SliceForRead(ctx *ReadContext, file []byte) []byte {
 	}
 
 	count := uint64(ctx.Count)
-	if ctx.Offset + count > flen {
+	if ctx.Offset+count > flen {
 		count = flen - ctx.Offset
 	}
 
-	response := file[ctx.Offset : ctx.Offset + count]
+	response := file[ctx.Offset : ctx.Offset+count]
 	return response
 }
 
@@ -345,7 +345,7 @@ type WriteContext struct {
 // an error if the bytes written differs from the requested
 // amount.
 func (ctx *WriteContext) Respond(count uint32) {
-	response := &RWrite{FCall{rwrite, ctx.call.Tag}, count}
+	response := &RWrite{FCall{Rwrite, ctx.call.Tag}, count}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
@@ -386,7 +386,7 @@ func (ctx *CreateContext) Respond(length uint64) *File {
 	ctx.conn.setFidPath(ctx.Fid, ctx.NewPath)
 	ctx.conn.setFidOpenmode(ctx.Fid, Ordwr)
 
-	response := &RCreate{FCall{rcreate, ctx.call.Tag}, newfile.Stat.Qid, iounit}
+	response := &RCreate{FCall{Rcreate, ctx.call.Tag}, newfile.Stat.Qid, iounit}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 	return newfile
@@ -401,7 +401,7 @@ type RemoveContext struct {
 // Respond removes the file
 func (ctx *RemoveContext) Respond() {
 	ctx.fs.removeFile(ctx.File)
-	response := &RRemove{FCall{rremove, ctx.call.Tag}}
+	response := &RRemove{FCall{Rremove, ctx.call.Tag}}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }

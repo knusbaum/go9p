@@ -38,17 +38,17 @@ func (remove *TRemove) Compose() []byte {
 func (remove *TRemove) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(remove.Fid))
 	if file == nil {
-		return &RError{FCall{rerror, remove.Tag}, "No such file."}
+		return &RError{FCall{Rerror, remove.Tag}, "No such file."}
 	}
 	if !openPermission(conn.uname, file, Owrite) {
-		return &RError{FCall{rerror, remove.Tag}, "Permission denied."}
+		return &RError{FCall{Rerror, remove.Tag}, "Permission denied."}
 	}
 
 	if s.Remove != nil {
 		ctx := &RemoveContext{Ctx{conn, fs, &remove.FCall, remove.Fid, file}}
 		s.Remove(ctx)
 	} else {
-		return &RError{FCall{rerror, remove.Tag}, "Remove not implemented."}
+		return &RError{FCall{Rerror, remove.Tag}, "Remove not implemented."}
 	}
 
 	return nil

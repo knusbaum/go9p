@@ -36,6 +36,14 @@ type Server struct {
 	Create  func(ctx *CreateContext)
 	Remove  func(ctx *RemoveContext)
 	Setup   func(ctx *UpdateContext)
+	Auth    func(ctx *AuthContext, in <-chan []byte, out chan<- []byte) // Run in a separate goroutine
+	// Internal use
+	outgoing chan outgoing
+}
+
+type outgoing struct {
+	conn *connection
+	msg []byte
 }
 
 type incoming struct {
@@ -105,6 +113,7 @@ func (srv *Server) Serve(listener net.Listener) {
 
 	newConns := make(chan *connection)
 	incomingCalls := make(chan incoming)
+	srv.outgoing = make(chan outgoing)
 	go acceptNewConnections(listener, newConns)
 
 	for {
@@ -125,6 +134,12 @@ func (srv *Server) Serve(listener net.Listener) {
 				fmt.Println("<<< ", reply)
 				conn.Conn.Write(reply.Compose())
 			}
+		// This is only used for auth
+		case outgoing := <-srv.outgoing:
+			fmt.Println("writing outgoing message!")
+			conn := outgoing.conn
+			msg := outgoing.msg
+			conn.Conn.Write(msg)
 
 		case update := <-fs.updateChan:
 			uctx := &UpdateContext{*update.originalCtx}
@@ -404,4 +419,13 @@ func (ctx *RemoveContext) Respond() {
 	response := &RRemove{FCall{Rremove, ctx.call.Tag}}
 	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
+}
+
+// AuthContext - The context given to the user's authentication functions
+type AuthContext struct {
+	Ctx
+}
+
+func (ctx *AuthContext) SetAuthenticated(b bool) {
+	ctx.conn.authenticated = b
 }

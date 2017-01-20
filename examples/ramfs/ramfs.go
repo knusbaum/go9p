@@ -9,6 +9,10 @@ import (
 	"fmt"
 	"github.com/knusbaum/go9p"
 	"net"
+	"os"
+	"runtime/trace"
+	"os/signal"
+	"syscall"
 )
 
 // Path -> data
@@ -97,6 +101,21 @@ func main() {
 		fmt.Println("Failed to listen: ", error)
 		return
 	}
-
+	f, err := os.Create("trace.grt")
+	defer f.Close()
+	if err != nil {
+		fmt.Printf("Failed to open file for trace output: %s\n", err)
+	} else {
+		c := make(chan os.Signal, 2)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-c
+			trace.Stop()
+			f.Close()
+			os.Exit(1)
+		}()
+		trace.Start(f)
+//		defer trace.Stop()
+	}
 	srv.Serve(listener)
 }

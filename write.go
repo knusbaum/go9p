@@ -48,7 +48,15 @@ func (write *TWrite) Compose() []byte {
 func (write *TWrite) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(write.Fid))
 	if file == nil {
-		return &RError{FCall{Rerror, write.Tag}, "No such file."}
+		if int64(write.Fid) == conn.Afid {
+			// The client is writing to the auth FID.
+			// Just pull the data out and send it on the auth channel.
+			fmt.Println("This is an auth write. Delivering to auth method.")
+			conn.iauthch <- write.Data
+			return &RWrite{FCall{Rwrite, write.Tag}, write.Count}
+		} else {
+			return &RError{FCall{Rerror, write.Tag}, "No such file."}
+		}
 	}
 	openmode := conn.getFidOpenmode(write.Fid)
 

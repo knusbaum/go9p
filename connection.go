@@ -31,6 +31,11 @@ type connection struct {
 	dirContents map[uint32][]byte // Fid -> serialized directory contents
 	readCalled map[uint32]bool
 	uname string
+	// Auth stuff
+	Afid int64  // fids are actually uint32, but I want to signal invalid fid with negative values
+	authenticated bool
+	iauthch chan []byte
+	oauthch chan []byte
 }
 
 func (conn *connection) getFidOpenmode(fid uint32) uint8 {
@@ -96,5 +101,7 @@ func (conn *connection) accept(l net.Listener) error {
 	}
 	conn.Conn = accepted
 	conn.fids = make(map[uint32]*fidInfo, 0)
+	conn.Afid = -1
+	conn.authenticated = false
 	return nil
 }

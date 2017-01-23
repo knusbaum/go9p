@@ -11,7 +11,7 @@ const (
 type TOpen struct {
 	FCall
 	Fid  uint32
-	Mode uint8
+	Mode
 }
 
 func (open *TOpen) String() string {
@@ -26,12 +26,12 @@ func (open *TOpen) Parse(buff []byte) ([]byte, error) {
 	}
 
 	open.Fid, buff = fromLittleE32(buff)
-	open.Mode = buff[0]
+	open.Mode = Mode(buff[0])
 	return buff[1:], nil
 }
 
 func (open *TOpen) Compose() []byte {
-	// size[4] Twrite tag[2] fid[4] mode[1]
+	// size[4] Topen tag[2] fid[4] mode[1]
 	length := 4 + 1 + 2 + 4 + 1
 	buff := make([]byte, length)
 	buffer := buff
@@ -41,7 +41,7 @@ func (open *TOpen) Compose() []byte {
 	buffer = buffer[1:]
 	buffer = toLittleE16(open.Tag, buffer)
 	buffer = toLittleE32(open.Fid, buffer)
-	buffer[0] = open.Mode
+	buffer[0] = byte(open.Mode)
 	buffer = buffer[1:]
 	return buff
 }
@@ -57,7 +57,7 @@ func (open *TOpen) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	if openmode != None {
 		return &RError{FCall{Rerror, open.Tag}, "Fid already open."}
 	}
-	if !openPermission(conn.uname, file, open.Mode&0x0F) {
+	if !openPermission(conn.uname, file, uint8(open.Mode) & 0x0F) {
 		return &RError{FCall{Rerror, open.Tag}, "Permission denied."}
 	}
 
@@ -70,7 +70,7 @@ func (open *TOpen) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	}
 
 	if s.Open != nil {
-		ctx := &OpenContext{Ctx{conn, fs, &open.FCall, open.Fid, file}, open.Mode}
+		ctx := &OpenContext{Ctx{conn, fs, &open.FCall, open.Fid, file}, uint8(open.Mode)}
 		s.Open(ctx)
 	} else {
 		conn.setFidOpenmode(open.Fid, open.Mode)

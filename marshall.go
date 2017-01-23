@@ -57,11 +57,14 @@ func fromLittleE64(buff []byte) (uint64, []byte) {
 }
 
 func fromString(buff []byte) (string, []byte) {
-	var len uint16
-	len, buff = fromLittleE16(buff)
+	var leng uint16
+	leng, buff = fromLittleE16(buff)
 
-	ret := string(buff[:len])
-	return ret, buff[len:]
+	if len(buff) < int(leng) {
+		return "", nil
+	}
+	ret := string(buff[:leng])
+	return ret, buff[leng:]
 }
 
 func toLittleE16(i uint16, buff []byte) []byte {

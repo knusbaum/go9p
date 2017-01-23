@@ -33,7 +33,7 @@ func (wstat *TWstat) Parse(buff []byte) ([]byte, error) {
 func (wstat *TWstat) Compose() []byte {
 	// size[4] Twstat tag[2] fid[4] stat[n]
 	statLength := wstat.Stat.ComposeLength()
-	length := 4 + 1 + 2 + 4 + statLength
+	length := 4 + 1 + 2 + 4 + 2 + statLength
 	buff := make([]byte, length)
 	buffer := buff
 
@@ -42,6 +42,7 @@ func (wstat *TWstat) Compose() []byte {
 	buffer = buffer[1:]
 	buffer = toLittleE16(wstat.Tag, buffer)
 	buffer = toLittleE32(wstat.Fid, buffer)
+	buffer = toLittleE16(statLength, buffer)
 	copy(buffer, wstat.Stat.Compose())
 
 	return buff

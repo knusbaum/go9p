@@ -270,7 +270,7 @@ type OpenContext struct {
 
 // Respond - Tells the client the open operation was successful.
 func (ctx *OpenContext) Respond() {
-	ctx.conn.setFidOpenmode(ctx.Fid, ctx.Mode)
+	ctx.conn.setFidOpenmode(ctx.Fid, Mode(ctx.Mode))
 	ctx.conn.setFidOpenoffset(ctx.Fid, ctx.File.Stat.Length)
 	if ctx.File.Stat.Mode&(1<<31) != 0 {
 		// If this is a directory, write out all subfile stats now so we have a consistent

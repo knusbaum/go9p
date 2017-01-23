@@ -5,6 +5,7 @@ import (
 	"net"
 )
 
+type Mode uint8
 // Open mode file constants
 const (
 	Oread  = 0
@@ -16,7 +17,7 @@ const (
 
 type fidInfo struct {
 	path       string
-	openMode   uint8
+	openMode   Mode
 	openOffset uint64
 }
 
@@ -38,14 +39,14 @@ type connection struct {
 	oauthch chan []byte
 }
 
-func (conn *connection) getFidOpenmode(fid uint32) uint8 {
+func (conn *connection) getFidOpenmode(fid uint32) Mode {
 	// This can blow up, but if it does, the code is wrong.
 	// Only call this method on valid fids.
 	info := conn.fids[fid]
 	return info.openMode
 }
 
-func (conn *connection) setFidOpenmode(fid uint32, openmode uint8) {
+func (conn *connection) setFidOpenmode(fid uint32, openmode Mode) {
 	info := conn.fids[fid]
 	if info != nil {
 		info.openMode = openmode

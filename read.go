@@ -103,6 +103,7 @@ func (read *TRead) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	}
 
 	openmode := conn.getFidOpenmode(read.Fid)
+	// TODO: Can't we just check against None?
 	if (openmode&0x0F) != Oread &&
 		(openmode&0x0F) != Ordwr &&
 		(openmode&0x0F) != Oexec {

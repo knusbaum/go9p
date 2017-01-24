@@ -30,7 +30,7 @@ func omodePermits(perm uint8, omode uint8) bool {
 		return perm&0x2 != 0
 		break
 	case Ordwr:
-		return perm&0x06 != 0
+		return (perm&0x2 != 0) && (perm&0x4 != 0)
 		break
 	case Oexec:
 		return perm&0x01 != 0

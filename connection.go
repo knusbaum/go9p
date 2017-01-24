@@ -13,6 +13,7 @@ const (
 	Ordwr  = 2
 	Oexec  = 3
 	None   = 4
+	Otrunc = 0x10
 )
 
 type fidInfo struct {

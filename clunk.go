@@ -38,9 +38,13 @@ func (clunk *TClunk) Compose() []byte {
 func (clunk *TClunk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 	file := fs.fileForPath(conn.pathForFid(clunk.Fid))
 	openmode := conn.getFidOpenmode(clunk.Fid)
+
+	// This should be turned into a function on conn.
+	// We shouldn't be mucking around in conn's members.
 	delete(conn.fids, clunk.Fid)
 	delete(conn.dirContents, clunk.Fid)
 	conn.getReadCalled()[clunk.Fid] = false
+	
 	if openmode != None &&
 		s.Close != nil {
 		ctx := &Ctx{conn, fs, &clunk.FCall, clunk.Fid, file}

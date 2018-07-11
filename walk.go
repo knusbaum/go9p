@@ -92,8 +92,7 @@ func (walk *TWalk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
 		}
 		currfile := fs.fileForPath(path)
 		if currfile == nil {
-			//return &RError{FCall{walk.Ctype, walk.Tag}, "No such path."}
-			return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
+			return &RError{FCall{Rerror, walk.Tag}, "No such path."}
 		}
 
 		qids = append(qids, currfile.Stat.Qid)

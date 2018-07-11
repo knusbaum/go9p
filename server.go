@@ -126,12 +126,13 @@ func (srv *Server) Serve(listener net.Listener) {
 			go process9PConnection(conn, incomingCalls)
 
 		case incoming := <-incomingCalls:
+//			fmt.Printf(".")
 			conn := incoming.conn
 			fc := incoming.call
-			fmt.Println(">>> ", fc)
+			//fmt.Println(">>> ", fc)
 			reply := fc.Reply(&fs, conn, srv)
 			if reply != nil {
-				fmt.Println("<<< ", reply)
+				//fmt.Println("<<< ", reply)
 				conn.Conn.Write(reply.Compose())
 			}
 		// This is only used for auth
@@ -173,7 +174,7 @@ type Ctx struct {
 // an explanation of the failure that occurred.
 func (ctx *Ctx) Fail(s string) {
 	response := &RError{FCall{Rerror, ctx.call.Tag}, s}
-	fmt.Println("<<< ", response)
+	//fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 
@@ -278,7 +279,7 @@ func (ctx *OpenContext) Respond() {
 		ctx.conn.setDirContents(ctx.Fid, ctx.File.composeSubfiles())
 	}
 	response := &ROpen{FCall{Ropen, ctx.call.Tag}, ctx.File.Stat.Qid, iounit}
-	fmt.Println("<<< ", response)
+	//fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 
@@ -295,7 +296,7 @@ type ReadContext struct {
 // Respond - Sends requested data back to the client.
 func (ctx *ReadContext) Respond(data []byte) {
 	response := &RRead{FCall{Rread, ctx.call.Tag}, uint32(len(data)), data}
-	fmt.Println("<<< ", response)
+	//fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 
@@ -312,7 +313,7 @@ func (ctx *DirReadContext) Respond() {
 		ctx.conn.setDirContents(ctx.Fid, ctx.File.composeSubfiles())
 	}
 	response := doDirRead(ctx.read, ctx.File, ctx.conn)
-	fmt.Println("<<< ", response)
+	//fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 
@@ -361,7 +362,7 @@ type WriteContext struct {
 // amount.
 func (ctx *WriteContext) Respond(count uint32) {
 	response := &RWrite{FCall{Rwrite, ctx.call.Tag}, count}
-	fmt.Println("<<< ", response)
+	//fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 
@@ -402,7 +403,7 @@ func (ctx *CreateContext) Respond(length uint64) *File {
 	ctx.conn.setFidOpenmode(ctx.Fid, Ordwr)
 
 	response := &RCreate{FCall{Rcreate, ctx.call.Tag}, newfile.Stat.Qid, iounit}
-	fmt.Println("<<< ", response)
+//	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 	return newfile
 }
@@ -417,7 +418,7 @@ type RemoveContext struct {
 func (ctx *RemoveContext) Respond() {
 	ctx.fs.removeFile(ctx.File)
 	response := &RRemove{FCall{Rremove, ctx.call.Tag}}
-	fmt.Println("<<< ", response)
+//	fmt.Println("<<< ", response)
 	ctx.conn.Conn.Write(response.Compose())
 }
 

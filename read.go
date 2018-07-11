@@ -45,7 +45,7 @@ func doDirRead(read *TRead, file *File, conn *connection) *RRead {
 
 	contents := make([]byte, 0)
 	files := file.subfiles
-	fmt.Printf("Have %d subfiles.\n", len(files))
+	//fmt.Printf("Have %d subfiles.\n", len(files))
 	var length uint64 = 0
 	startOffset := -1
 	//i := 0
@@ -58,7 +58,7 @@ func doDirRead(read *TRead, file *File, conn *connection) *RRead {
 		length = length + nextLength
 	}
 
-	fmt.Println("Start Offset:", startOffset)
+	//fmt.Println("Start Offset:", startOffset)
 
 	if startOffset < 0 {
 		return &RRead{FCall{Rread, read.Tag}, 0, nil}

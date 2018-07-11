@@ -13,6 +13,7 @@ import (
 	"runtime/trace"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 // Path -> data
@@ -83,6 +84,13 @@ func Setup(ctx *go9p.UpdateContext) {
 	ctx.AddFile(0444, 0, "overalloc", "root", root)
 }
 
+func Reporter() {
+	for {
+		time.Sleep(5 * time.Second);
+		fmt.Printf("Have %d files.\n", len(data))
+	}
+}
+
 func main() {
 	data = make(map[string][]byte, 0)
 	fidToData = make(map[uint32][]byte, 0)
@@ -95,6 +103,8 @@ func main() {
 		Remove: Remove,
 		Setup:  Setup}
 	fmt.Println("Starting server...")
+
+	go Reporter()
 
 	listener, error := net.Listen("tcp", "0.0.0.0:9999")
 	if error != nil {

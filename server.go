@@ -208,6 +208,13 @@ func (ctx *Ctx) UpdateFS(fn func(*UpdateContext)) {
 	}()
 }
 
+// Returns an ID unique to a particular connection and file.
+// Different connections can use the same Fids, so this is a way
+// of tracking a particular connection/file pair.
+func (ctx *Ctx) UniqueFileID() string {
+	return fmt.Sprintf("%p:%d", &ctx.conn, ctx.Fid)
+}
+
 // UpdateContext is the context given to functions passed to UpdateFS.
 // UpdateContext has functions that allow a user to modify the filesystem,
 // adding, removing files, etc.

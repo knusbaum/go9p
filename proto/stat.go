@@ -1,24 +1,24 @@
-package go9p
+package proto
 
-import (
-	"fmt"
+import "fmt"
+
+const (
+	DMDIR    = uint32(1 << 31)
+	DMAPPEND = uint32(1 << 30)
+	DMEXCL = uint32(1 << 29)
+	DMTMP = uint32(1 << 26)
 )
 
 type TStat struct {
-	FCall
+	Header
 	Fid uint32
 }
 
 func (stat *TStat) String() string {
-	return fmt.Sprintf("tstat: [%s, fid: %d]", &stat.FCall, stat.Fid)
+	return fmt.Sprintf("tstat: [%s, fid: %d]", &stat.Header, stat.Fid)
 }
 
-func (stat *TStat) Parse(buff []byte) ([]byte, error) {
-	buff, err := fcParse(&stat.FCall, buff)
-	if err != nil {
-		return nil, err
-	}
-
+func (stat *TStat) parse(buff []byte) ([]byte, error) {
 	stat.Fid, buff = fromLittleE32(buff)
 	return buff, nil
 }
@@ -30,7 +30,7 @@ func (stat *TStat) Compose() []byte {
 	buffer := buff
 
 	buffer = toLittleE32(uint32(length), buffer)
-	buffer[0] = stat.Ctype
+	buffer[0] = stat.Type
 	buffer = buffer[1:]
 	buffer = toLittleE16(stat.Tag, buffer)
 	buffer = toLittleE32(stat.Fid, buffer)
@@ -38,16 +38,8 @@ func (stat *TStat) Compose() []byte {
 	return buff
 }
 
-func (stat *TStat) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
-	file := fs.fileForPath(conn.pathForFid(stat.Fid))
-	if file == nil {
-		return &RError{FCall{Rstat, stat.Tag}, "No such file."}
-	}
-	return &RStat{FCall{Rstat, stat.Tag}, file.Stat}
-}
-
 type Stat struct {
-	Stype  uint16
+	Type  uint16
 	Dev    uint32
 	Qid    Qid
 	Mode   uint32
@@ -62,16 +54,16 @@ type Stat struct {
 
 func (stat *Stat) String() string {
 	return fmt.Sprintf("stype: %d, dev: %d, qid: [%s], mode: %o, atime: %d, mtime: %d, length: %d, name: %s, uid: %s, gid: %s, muid: %s",
-		stat.Stype, stat.Dev, &stat.Qid, stat.Mode,
+		stat.Type, stat.Dev, &stat.Qid, stat.Mode,
 		stat.Atime, stat.Mtime, stat.Length, stat.Name, stat.Uid,
 		stat.Gid, stat.Muid)
 }
 
-func (stat *Stat) Parse(buff []byte) ([]byte, error) {
+func (stat *Stat) parse(buff []byte) ([]byte, error) {
 	_, buff = fromLittleE16(buff) // throw away length
-	stat.Stype, buff = fromLittleE16(buff)
+	stat.Type, buff = fromLittleE16(buff)
 	stat.Dev, buff = fromLittleE32(buff)
-	buff, err := stat.Qid.Parse(buff)
+	buff, err := stat.Qid.parse(buff)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +94,7 @@ func (stat *Stat) Compose() []byte {
 	buffer := buff
 
 	buffer = toLittleE16(length-2, buffer)
-	buffer = toLittleE16(stat.Stype, buffer)
+	buffer = toLittleE16(stat.Type, buffer)
 	buffer = toLittleE32(stat.Dev, buffer)
 	qidbuff := stat.Qid.Compose()
 	copy(buffer, qidbuff)
@@ -119,22 +111,18 @@ func (stat *Stat) Compose() []byte {
 }
 
 type RStat struct {
-	FCall
+	Header
 	Stat
 }
 
 func (stat *RStat) String() string {
 	return fmt.Sprintf("rstat: [%s, %s]",
-		&stat.FCall, &stat.Stat)
+		&stat.Header, &stat.Stat)
 }
 
-func (stat *RStat) Parse(buff []byte) ([]byte, error) {
-	buff, err := fcParse(&stat.FCall, buff)
-	if err != nil {
-		return nil, err
-	}
+func (stat *RStat) parse(buff []byte) ([]byte, error) {
 	_, buff = fromLittleE16(buff) // stat length
-	buff, err = stat.Stat.Parse(buff)
+	buff, err := stat.Stat.parse(buff)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +137,7 @@ func (stat *RStat) Compose() []byte {
 	buffer := buff
 
 	buffer = toLittleE32(uint32(length), buffer)
-	buffer[0] = stat.Ctype
+	buffer[0] = stat.Header.Type
 	buffer = buffer[1:]
 	buffer = toLittleE16(stat.Tag, buffer)
 	buffer = toLittleE16(statLength, buffer)

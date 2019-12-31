@@ -1,25 +1,20 @@
-package go9p
+package proto
 
 import (
 	"fmt"
 )
 
 type RError struct {
-	FCall
+	Header
 	Ename string
 }
 
 func (error *RError) String() string {
 	return fmt.Sprintf("rerror: [%s, ename: %s]",
-		&error.FCall, error.Ename)
+		&error.Header, error.Ename)
 }
 
-func (error *RError) Parse(buff []byte) ([]byte, error) {
-	buff, err := fcParse(&error.FCall, buff)
-	if err != nil {
-		return nil, err
-	}
-
+func (error *RError) parse(buff []byte) ([]byte, error) {
 	error.Ename, buff = fromString(buff)
 	return buff, nil
 }
@@ -31,7 +26,7 @@ func (error *RError) Compose() []byte {
 	buffer := buff
 
 	buffer = toLittleE32(uint32(length), buffer)
-	buffer[0] = error.Ctype
+	buffer[0] = error.Type
 	buffer = buffer[1:]
 	buffer = toLittleE16(error.Tag, buffer)
 	buffer = toString(error.Ename, buffer)

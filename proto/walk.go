@@ -1,11 +1,9 @@
-package go9p
+package proto
 
-import (
-	"fmt"
-)
+import "fmt"
 
 type TWalk struct {
-	FCall
+	Header
 	Fid    uint32
 	Newfid uint32
 	Nwname uint16
@@ -14,7 +12,7 @@ type TWalk struct {
 
 func (walk *TWalk) String() string {
 	ret := fmt.Sprintf("twalk: [%s, fid: %d, newfid: %d, nwname: %d, wname: <",
-		&walk.FCall, walk.Fid, walk.Newfid, walk.Nwname)
+		&walk.Header, walk.Fid, walk.Newfid, walk.Nwname)
 	for _, s := range walk.Wname {
 		ret += s + ", "
 	}
@@ -22,12 +20,7 @@ func (walk *TWalk) String() string {
 	return ret
 }
 
-func (walk *TWalk) Parse(buff []byte) ([]byte, error) {
-	buff, err := fcParse(&walk.FCall, buff)
-	if err != nil {
-		return nil, err
-	}
-
+func (walk *TWalk) parse(buff []byte) ([]byte, error) {
 	walk.Fid, buff = fromLittleE32(buff)
 	walk.Newfid, buff = fromLittleE32(buff)
 	walk.Nwname, buff = fromLittleE16(buff)
@@ -49,7 +42,7 @@ func (walk *TWalk) Compose() []byte {
 	buffer := buff
 
 	buffer = toLittleE32(uint32(length), buffer)
-	buffer[0] = walk.Ctype
+	buffer[0] = walk.Type
 	buffer = buffer[1:]
 	buffer = toLittleE16(walk.Tag, buffer)
 	buffer = toLittleE32(walk.Fid, buffer)
@@ -62,54 +55,15 @@ func (walk *TWalk) Compose() []byte {
 	return buff
 }
 
-func (walk *TWalk) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
-	file := fs.fileForPath(conn.pathForFid(walk.Fid))
-	if file == nil {
-		return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
-		//return &RError{FCall{walk.Ctype, walk.Tag}, "No such file."}
-	}
-
-	// Special case for ..
-	if walk.Nwname > 0 && walk.Wname[0] == ".." {
-
-		if file.Parent != nil {
-			conn.setFidPath(walk.Newfid, file.Parent.Path)
-			qids := make([]Qid, 1)
-			qids[0] = file.Parent.Stat.Qid
-			return &RWalk{FCall{Rwalk, walk.Tag}, 1, qids}
-		} else {
-			return &RWalk{FCall{Rwalk, walk.Tag}, 0, nil}
-		}
-	}
-
-	qids := make([]Qid, 0)
-	path := file.Path
-	for i := 0; i < int(walk.Nwname); i++ {
-		if path == "/" {
-			path += walk.Wname[i]
-		} else {
-			path += "/" + walk.Wname[i]
-		}
-		currfile := fs.fileForPath(path)
-		if currfile == nil {
-			return &RError{FCall{Rerror, walk.Tag}, "No such path."}
-		}
-
-		qids = append(qids, currfile.Stat.Qid)
-	}
-	conn.setFidPath(walk.Newfid, path)
-	return &RWalk{FCall{Rwalk, walk.Tag}, uint16(len(qids)), qids}
-}
-
 type RWalk struct {
-	FCall
+	Header
 	Nwqid uint16
 	Wqid  []Qid
 }
 
 func (walk *RWalk) String() string {
 	ret := fmt.Sprintf("rwalk: [%s, nwqid: %d, wqid: <",
-		&walk.FCall, walk.Nwqid)
+		&walk.Header, walk.Nwqid)
 	for _, qid := range walk.Wqid {
 		ret += fmt.Sprintf("<%s>, ", &qid)
 	}
@@ -117,17 +71,13 @@ func (walk *RWalk) String() string {
 	return ret
 }
 
-func (walk *RWalk) Parse(buff []byte) ([]byte, error) {
-	buff, err := fcParse(&walk.FCall, buff)
-	if err != nil {
-		return nil, err
-	}
-
+func (walk *RWalk) parse(buff []byte) ([]byte, error) {
 	walk.Nwqid, buff = fromLittleE16(buff)
 	walk.Wqid = make([]Qid, walk.Nwqid)
 	var i uint16
+	var err error
 	for ; i < walk.Nwqid; i++ {
-		buff, err = walk.Wqid[i].Parse(buff)
+		buff, err = walk.Wqid[i].parse(buff)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +92,7 @@ func (walk *RWalk) Compose() []byte {
 	buffer := buff
 
 	buffer = toLittleE32(uint32(length), buffer)
-	buffer[0] = walk.Ctype
+	buffer[0] = walk.Type
 	buffer = buffer[1:]
 	buffer = toLittleE16(walk.Tag, buffer)
 	buffer = toLittleE16(walk.Nwqid, buffer)

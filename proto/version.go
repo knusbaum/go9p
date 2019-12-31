@@ -1,32 +1,27 @@
-package go9p
+package proto
 
 import (
 	"fmt"
 )
 
 type TRVersion struct {
-	FCall
+	Header
 	Msize   uint32
 	Version string
 }
 
 func (version *TRVersion) String() string {
 	var c byte
-	if version.Ctype == Tversion {
+	if version.Type == Tversion {
 		c = 't'
 	} else {
 		c = 'r'
 	}
 	return fmt.Sprintf("%cversion: [%s, msize: %d, version: %s]",
-		c, &version.FCall, version.Msize, version.Version)
+		c, &version.Header, version.Msize, version.Version)
 }
 
-func (version *TRVersion) Parse(buff []byte) ([]byte, error) {
-	buff, err := fcParse(&version.FCall, buff)
-	if err != nil {
-		return nil, err
-	}
-
+func (version *TRVersion) parse(buff []byte) ([]byte, error) {
 	version.Msize, buff = fromLittleE32(buff)
 	version.Version, buff = fromString(buff)
 	return buff, nil
@@ -39,22 +34,11 @@ func (version *TRVersion) Compose() []byte {
 	buffer := buff
 
 	buffer = toLittleE32(uint32(length), buffer)
-	buffer[0] = version.Ctype
+	buffer[0] = version.Type
 	buffer = buffer[1:]
 	buffer = toLittleE16(version.Tag, buffer)
 	buffer = toLittleE32(version.Msize, buffer)
 	buffer = toString(version.Version, buffer)
 
 	return buff
-}
-
-func (version *TRVersion) Reply(fs *filesystem, conn *connection, s *Server) IFCall {
-	var reply TRVersion = TRVersion{}
-	if version.Ctype == Tversion {
-		reply = *version
-		reply.Ctype = Rversion
-		return &reply
-	} else {
-		return nil
-	}
 }

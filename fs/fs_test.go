@@ -3,7 +3,7 @@ package fs
 import (
 	"testing"
 
-	"github.com/knusbaum/go9p2/proto"
+	"github.com/knusbaum/go9p/proto"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -22,10 +22,10 @@ func TestStaticDir(t *testing.T) {
 
 	f := NewStaticFile(fs.NewStat("file", "user", "group", 0777), []byte("Hello, World!\n"))
 	d := NewStaticDir(fs.NewStat("dir", "user", "group", 0777|proto.DMDIR))
-	err = root.AddFile(f)
+	err = root.AddChild(f)
 	assert.NoError(err)
 
-	err = root.AddDir(d)
+	err = root.AddChild(d)
 	assert.NoError(err)
 	assert.Len(root.Children(), 2)
 	assert.Equal(f, root.Children()["file"])

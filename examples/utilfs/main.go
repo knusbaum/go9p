@@ -9,17 +9,17 @@ package main
 
 import (
 	"crypto/rand"
-	"time"
 	"fmt"
+	"time"
 
-	"github.com/knusbaum/go9p2/server"
-	"github.com/knusbaum/go9p2/fs"
+	"github.com/knusbaum/go9p/fs"
+	"github.com/knusbaum/go9p/server"
 )
 
 func addEvent(f *fs.StaticFile, s string) {
 	f.Lock()
 	defer f.Unlock()
-	f.Data = append(f.Data, []byte(s + "\n")...)
+	f.Data = append(f.Data, []byte(s+"\n")...)
 }
 
 func WrapEvents(evFile *fs.StaticFile, f fs.File) fs.File {
@@ -51,7 +51,7 @@ func main() {
 	utilFS.Root.AddChild(events)
 	utilFS.Root.AddChild(
 		WrapEvents(events, fs.NewDynamicFile(utilFS.NewStat("time", "glenda", "glenda", 0444),
-			func()[]byte {
+			func() []byte {
 				return []byte(time.Now().String() + "\n")
 			},
 		)),
@@ -64,8 +64,8 @@ func main() {
 				rand.Reader.Read(bs)
 				return bs, nil
 			},
-		}),			
+		}),
 	)
-	//server.Serve("0.0.0.0:9999", utilFS)
+	// Post a local service.
 	server.PostSrv("utilfs", utilFS)
 }

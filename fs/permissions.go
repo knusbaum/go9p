@@ -1,7 +1,7 @@
 package fs
 
 import (
-	"github.com/knusbaum/go9p2/proto"
+	"github.com/knusbaum/go9p/proto"
 )
 
 const (

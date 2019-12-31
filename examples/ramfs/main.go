@@ -1,10 +1,8 @@
 package main
 
 import (
-	"log"
-
-	"github.com/knusbaum/go9p2/server"
-	"github.com/knusbaum/go9p2/fs"
+	"github.com/knusbaum/go9p/fs"
+	"github.com/knusbaum/go9p/server"
 )
 
 func main() {
@@ -13,5 +11,6 @@ func main() {
 		fs.WithCreateDir(fs.CreateStaticDir),
 		fs.WithRemoveFile(fs.RMFile),
 	)
+	// Listen on port 9999
 	server.Serve("0.0.0.0:9999", fs)
 }

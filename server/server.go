@@ -6,8 +6,8 @@ import (
 	"io"
 	"net"
 
-	"github.com/knusbaum/go9p2/fs"
-	"github.com/knusbaum/go9p2/proto"
+	"github.com/knusbaum/go9p/fs"
+	"github.com/knusbaum/go9p/proto"
 )
 
 func handleConnection(nc net.Conn, fs *fs.FS) {
@@ -24,19 +24,16 @@ func handleIO(r io.Reader, w io.Writer, fs *fs.FS) error {
 	for {
 		call, err := proto.ParseCall(r)
 		if err != nil {
-			//fmt.Printf("Failed to parse incoming call: %s\n", err)
 			return err
 		}
 		fmt.Printf("=in=> %v\n", call)
 		resp, err := c.handleCall(call)
 		if err != nil {
-			//fmt.Printf("Failed to respond: %s\n", err)
 			return err
 		}
 		fmt.Printf("<=out= %v\n", resp)
 		_, err = w.Write(resp.Compose())
 		if err != nil {
-			//fmt.Printf("Failed to write response: %s\n")
 			return err
 		}
 	}

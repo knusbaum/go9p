@@ -3,7 +3,7 @@ package fs
 import (
 	"sync"
 
-	"github.com/knusbaum/go9p2/proto"
+	"github.com/knusbaum/go9p/proto"
 )
 
 type StaticFile struct {

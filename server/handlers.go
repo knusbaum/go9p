@@ -5,8 +5,8 @@ import (
 	"math"
 	"reflect"
 
-	"github.com/knusbaum/go9p2/fs"
-	"github.com/knusbaum/go9p2/proto"
+	"github.com/knusbaum/go9p/fs"
+	"github.com/knusbaum/go9p/proto"
 )
 
 type fidInfo struct {
@@ -58,7 +58,7 @@ func (c *conn) handleCall(call proto.FCall) (proto.FCall, error) {
 	case *proto.TWstat:
 		return c.handleTWstat(call.(*proto.TWstat))
 	default:
-		return nil, fmt.Errorf("Invalid call: %s", reflect .TypeOf(call))
+		return nil, fmt.Errorf("Invalid call: %s", reflect.TypeOf(call))
 	}
 }
 
@@ -122,15 +122,15 @@ func (c *conn) handleTWalk(t *proto.TWalk) (proto.FCall, error) {
 				}
 				dir.AddChild(f)
 				file = f
-//				
-//				if c.fs.WalkFail != nil {
-//					f := c.fs.WalkFail(c.fs, dir, t.Wname[i])
-//					if f != nil {
-//						file = f
-//					}
-//				}
-//				//fmt.Printf("Can't find [%s] in [%s]: %v\n", t.Wname[i], dir.Stat().Name, t.Wname[i])
-//				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "No such path.1"}, nil
+				//
+				//				if c.fs.WalkFail != nil {
+				//					f := c.fs.WalkFail(c.fs, dir, t.Wname[i])
+				//					if f != nil {
+				//						file = f
+				//					}
+				//				}
+				//				//fmt.Printf("Can't find [%s] in [%s]: %v\n", t.Wname[i], dir.Stat().Name, t.Wname[i])
+				//				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "No such path.1"}, nil
 			}
 			qids = append(qids, file.Stat().Qid)
 		} else {
@@ -173,7 +173,7 @@ func (c *conn) handleTOpen(t *proto.TOpen) (proto.FCall, error) {
 	}
 	info.openMode = t.Mode
 	info.openOffset = info.n.Stat().Length
-	
+
 	return &proto.ROpen{proto.Header{proto.Ropen, t.Tag}, info.n.Stat().Qid, proto.IOUnit}, nil
 }
 
@@ -189,7 +189,7 @@ func (c *conn) handleTCreate(t *proto.TCreate) (proto.FCall, error) {
 	if dir, ok := info.n.(fs.Dir); ok {
 		var new fs.FSNode
 		var err error
-		if t.Perm & proto.DMDIR != 0 {
+		if t.Perm&proto.DMDIR != 0 {
 			if c.fs.CreateDir != nil {
 				new, err = c.fs.CreateDir(c.fs, dir, c.uname, t.Name, t.Perm, t.Mode)
 			} else {

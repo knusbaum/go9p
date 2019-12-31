@@ -2,11 +2,11 @@ package fs
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
-	"strings"
 
-	"github.com/knusbaum/go9p2/proto"
+	"github.com/knusbaum/go9p/proto"
 )
 
 type FSNode interface {
@@ -42,7 +42,7 @@ func FullPath(f FSNode) string {
 	}
 	fp := FullPath(parent)
 	fmt.Printf("Not root: %s / %s\n", fp, f.Stat().Name)
-	return strings.Replace(fp + "/" + f.Stat().Name, "//", "/", -1)
+	return strings.Replace(fp+"/"+f.Stat().Name, "//", "/", -1)
 }
 
 type BaseFile struct {

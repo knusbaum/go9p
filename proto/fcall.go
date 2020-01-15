@@ -1,3 +1,13 @@
+// Package proto implements the 9p2000 protocol messages and the code required to
+// marshal the messages.
+//
+// All the messages implement the FCall interface. Messages can be read from an
+// io.Reader with the ParseCall function.
+//
+// The details of the protocol aren't documented in this package. Instead,
+// see the protocol RFC here: http://knusbaum.com/useful/rfc9p2000 
+// 
+// The RFC contains in-depth descriptions of the messages and what they mean.
 package proto
 
 import (
@@ -43,10 +53,11 @@ const (
 	maxMsgLen = 65535 // 65k should be enough for anyone.
 )
 
-// FCall - the interface that all FCall types imlement.
-// String - typical human readable string representation.
-// Compose - returns a slice containing the call serialized
-// according the the 9P2000 protocol, ready to be written.
+// FCall - the interface that all FCall types imlement. The String
+// function returns a human readable string representation of the
+// message. The Compose function returns a slice containing the 9p
+// message marshaled according the the 9P2000 protocol, ready to be
+// written to a stream.
 type FCall interface {
 	String() string
 	Compose() []byte
@@ -97,8 +108,6 @@ func (qid *Qid) parse(buff []byte) ([]byte, error) {
 	return buff, nil
 }
 
-// Compose - Returns a slice of the Qid serialized to be
-// written out on a 9P2000 stream.
 func (qid *Qid) Compose() []byte {
 	buff := make([]byte, 13)
 	buffer := buff

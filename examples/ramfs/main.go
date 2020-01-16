@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/knusbaum/go9p/fs"
-	"github.com/knusbaum/go9p/server"
+	"github.com/knusbaum/go9p"
 )
 
 func main() {
@@ -12,5 +12,5 @@ func main() {
 		fs.WithRemoveFile(fs.RMFile),
 	)
 	// Listen on port 9999
-	server.Serve("0.0.0.0:9999", fs)
+	go9p.Serve("0.0.0.0:9999", fs.Server())
 }

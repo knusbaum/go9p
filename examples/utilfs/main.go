@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/knusbaum/go9p/proto"
 	"github.com/knusbaum/go9p/fs"
-	"github.com/knusbaum/go9p/server"
+	"github.com/knusbaum/go9p"
 )
 
 func addEvent(f *fs.StaticFile, s string) {
@@ -26,7 +27,7 @@ func WrapEvents(evFile *fs.StaticFile, f fs.File) fs.File {
 	fname := f.Stat().Name
 	return &fs.WrappedFile{
 		File: f,
-		OpenF: func(fid uint32, omode uint8) error {
+		OpenF: func(fid uint32, omode proto.Mode) error {
 			addEvent(evFile, fmt.Sprintf("Open %s: mode: %d", fname, omode))
 			return f.Open(fid, omode)
 		},
@@ -67,5 +68,5 @@ func main() {
 		}),
 	)
 	// Post a local service.
-	server.PostSrv("utilfs", utilFS)
+	go9p.PostSrv("utilfs", utilFS.Server())
 }

@@ -1,6 +1,6 @@
 // +build !plan9
 
-package server
+package go9p
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"github.com/fhs/mux9p"
 )
 
-type ReadWriteCloser interface {
+type readWriteCloser interface {
 	io.Reader
 	io.Writer
 	Close()
@@ -67,7 +67,7 @@ func newPipePair() (*pipe, *pipe) {
 	return p1, p2
 }
 
-func postfd(name string) (ReadWriteCloser, error) {
+func postfd(name string) (readWriteCloser, error) {
 	ns := client.Namespace()
 	if err := os.MkdirAll(ns, 0700); err != nil {
 		return nil, err

@@ -26,7 +26,7 @@ func (f *StaticFile) Stat() proto.Stat {
 	return f.fStat
 }
 
-func (f *StaticFile) Open(fid uint32, omode uint8) error {
+func (f *StaticFile) Open(fid uint32, omode proto.Mode) error {
 	if omode&proto.Otrunc > 0 {
 		f.Lock()
 		defer f.Unlock()
@@ -131,4 +131,16 @@ func (d *StaticDir) DeleteChild(name string) error {
 	c.SetParent(nil)
 	delete(d.children, name)
 	return nil
+}
+
+func CreateStaticFile(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (File, error) {
+	f := NewStaticFile(fs.NewStat(name, user, user, perm), []byte{})
+	parent.AddChild(f)
+	return f, nil
+}
+
+func CreateStaticDir(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (Dir, error) {
+	f := NewStaticDir(fs.NewStat(name, user, user, perm))
+	parent.AddChild(f)
+	return f, nil
 }

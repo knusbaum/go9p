@@ -5,28 +5,28 @@ import (
 )
 
 const (
-	UGO_user  = iota
-	UGO_group = iota
-	UGO_other = iota
+	ugo_user  = iota
+	ugo_group = iota
+	ugo_other = iota
 )
 
-func UserInGroup(user string, group string) bool {
+func userInGroup(user string, group string) bool {
 	// For now groups and users are equivalent.
 	return user == group
 }
 
-func UserRelation(user string, f FSNode) uint8 {
+func userRelation(user string, f FSNode) uint8 {
 	st := f.Stat()
 	if user == st.Uid {
-		return UGO_user
+		return ugo_user
 	}
-	if UserInGroup(user, st.Gid) {
-		return UGO_group
+	if userInGroup(user, st.Gid) {
+		return ugo_group
 	}
-	return UGO_other
+	return ugo_other
 }
 
-func omodePermits(perm uint8, omode uint8) bool {
+func omodePermits(perm uint8, omode proto.Mode) bool {
 	switch omode {
 	case proto.Oread:
 		return perm&0x4 != 0
@@ -50,15 +50,15 @@ func omodePermits(perm uint8, omode uint8) bool {
 	return false
 }
 
-func OpenPermission(f FSNode, user string, omode uint8) bool {
-	switch UserRelation(user, f) {
-	case UGO_user:
+func openPermission(f FSNode, user string, omode proto.Mode) bool {
+	switch userRelation(user, f) {
+	case ugo_user:
 		return omodePermits(uint8(f.Stat().Mode>>6)&0x07, omode)
 		break
-	case UGO_group:
+	case ugo_group:
 		return omodePermits(uint8(f.Stat().Mode>>3)&0x07, omode)
 		break
-	case UGO_other:
+	case ugo_other:
 		return omodePermits(uint8(f.Stat().Mode)&0x07, omode)
 		break
 	default:

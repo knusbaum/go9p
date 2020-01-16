@@ -6,13 +6,13 @@ type Mode uint8
 
 // Open mode file constants
 const (
-	Oread   = 0
-	Owrite  = 1
-	Ordwr   = 2
-	Oexec   = 3
-	None    = 4
-	Otrunc  = 0x10
-	Orclose = 0x40
+	Oread   Mode = 0
+	Owrite  Mode = 1
+	Ordwr   Mode = 2
+	Oexec   Mode = 3
+	None    Mode = 4
+	Otrunc  Mode = 0x10
+	Orclose Mode = 0x40
 )
 
 const (

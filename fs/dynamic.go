@@ -18,7 +18,7 @@ func NewDynamicFile(s *proto.Stat, genContent func() []byte) *DynamicFile {
 	}
 }
 
-func (f *DynamicFile) Open(fid uint32, omode uint8) error {
+func (f *DynamicFile) Open(fid uint32, omode proto.Mode) error {
 	f.Lock()
 	defer f.Unlock()
 	f.fidContent[fid] = f.genContent()
@@ -48,13 +48,13 @@ func (f *DynamicFile) Close(fid uint32) error {
 
 type WrappedFile struct {
 	File
-	OpenF  func(fid uint32, omode uint8) error
+	OpenF  func(fid uint32, omode proto.Mode) error
 	ReadF  func(fid uint32, offset uint64, count uint64) ([]byte, error)
 	WriteF func(fid uint32, offset uint64, data []byte) (uint32, error)
 	CloseF func(fid uint32) error
 }
 
-func (f *WrappedFile) Open(fid uint32, omode uint8) error {
+func (f *WrappedFile) Open(fid uint32, omode proto.Mode) error {
 	if f.OpenF != nil {
 		return f.OpenF(fid, omode)
 	}

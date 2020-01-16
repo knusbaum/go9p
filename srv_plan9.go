@@ -1,4 +1,4 @@
-package server
+package go9p
 
 import (
 	"fmt"

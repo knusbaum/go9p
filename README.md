@@ -1,12 +1,24 @@
 # go9p
-This is a golang implementation of the 9p2000 protocol.
-Provided is foremost an API to implement servers serving the protocol, but also some more primitive constructs if you'd like to dink with the protocol outside the confines of what the API provides.
+This is an implementation of the 9p2000 protocol in Go.
 
-Examples are available in examples/ (duh)
+There are a couple packages here.
 
-Docs available here: http://godoc.org/github.com/knusbaum/go9p
+[`github.com/knusbaum/go9p`](http://godoc.org/github.com/knusbaum/go9p) on its own just contains an interface definition for a 9p2000 server, `Srv`.
+along with a few functions that will serve the 9p2000 protocol using a `Srv`.
 
-These programs are meant to be used with plan9port's 9pfuse (or some equivalent)
+[`github.com/knusbaum/go9p/proto`](http://godoc.org/github.com/knusbaum/go9p/proto) is the protocol implementation. It is used by the other packages to
+send and receive 9p2000 messages. It may be useful to someone who wants to investigate 9p2000 at the
+protocol level.
+
+[`github.com/knusbaum/go9p/fs`](http://godoc.org/github.com/knusbaum/go9p/fs) is an package that implements a hierarchical filesystem as a struct, `FS`.
+An `FS` contains a hierarchy of `Dir`s and `File`s. The package also contains other types and functions 
+useful for building 9p filesystems.
+
+Examples are available in examples/
+
+This library has been tested on Plan 9 and Linux.
+
+Programs serving 9p2000 can be mounted on Unix with plan9port's 9pfuse (or some equivalent)
 https://github.com/9fans/plan9port
 
 For example, you would mount the ramfs example with the following command:
@@ -18,7 +30,7 @@ Then you can copy files to/from the ramfs and do all the other stuff that you'd 
 This is distributed under the MIT license
 
 ```
-    Copyright (c) 2016 Kyle Nusbaum
+    Copyright (c) 2016-Present Kyle Nusbaum
 
 
     Permission is hereby granted, free of charge, to any person obtaining a copy

@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"reflect"
+	"sync"
 
 	"github.com/knusbaum/go9p/proto"
 )
@@ -46,12 +48,16 @@ type Conn interface {
 func handleConnection(nc net.Conn, srv Srv) {
 	defer nc.Close()
 	read := bufio.NewReader(nc)
-	err := handleIO(read, nc, srv)
+	err := handleIOAsync(read, nc, srv)
 	if err != nil {
-		fmt.Printf("%v\n", err)
+		log.Printf("%v\n", err)
 	}
 }
 
+// handleIO seems to be about 10x faster than handleIOAsync
+// in my experiments. It would be nice to be able to keep some
+// performance without making the reading, handling, and
+// writing of calls synchronous.
 func handleIO(r io.Reader, w io.Writer, srv Srv) error {
 	conn := srv.NewConn()
 	for {
@@ -59,17 +65,72 @@ func handleIO(r io.Reader, w io.Writer, srv Srv) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("=in=> %v\n", call)
+		//log.Printf("=in=> %v\n", call)
 		resp, err := handleCall(call, srv, conn)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("<=out= %v\n", resp)
+		//log.Printf("<=out= %v\n", resp)
 		_, err = w.Write(resp.Compose())
 		if err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
+	incoming := make(chan proto.FCall)
+	outgoing := make(chan proto.FCall)
+
+	conn := srv.NewConn()
+
+	// Write the outgoing
+	var outgoingWG sync.WaitGroup
+	defer func() { outgoingWG.Wait() }()
+	outgoingWG.Add(1)
+	go func() {
+		outgoingWG.Done()
+		for call := range outgoing {
+			//log.Printf("<=out= %v\n", call)
+			_, err := w.Write(call.Compose())
+			if err != nil {
+				log.Printf("Protocol error: %v\n", err)
+			}
+		}
+	}()
+
+	var workerWG sync.WaitGroup
+	defer func() { workerWG.Wait(); close(outgoing) }()
+	for i := 0; i < 1; i++ {
+		workerWG.Add(1)
+		go func() {
+			defer workerWG.Done()
+			for call := range incoming {
+				//resp, err := c.handleCall(call)
+				resp, err := handleCall(call, srv, conn)
+				if err != nil {
+					log.Printf("Protocol error: %v\n", err)
+					//return err
+					return
+				}
+				outgoing <- resp
+			}
+		}()
+	}
+
+	// Read incoming
+	defer close(incoming)
+	for {
+		call, err := proto.ParseCall(r)
+		//log.Printf("=in=> %v\n", call)
+		if err != nil {
+			log.Printf("Protocol error: %v\n", err)
+			return err
+		}
+		incoming <- call
+	}
+
 	return nil
 }
 
@@ -106,6 +167,13 @@ func handleCall(call proto.FCall, srv Srv, conn Conn) (proto.FCall, error) {
 	}
 }
 
+// ServeReadWriter accepts an io.Reader an io.Writer, and an Srv.
+// It reads 9p2000 messages from r, handles them with srv, and
+// writes the responses to w.
+func ServeReadWriter(r io.Reader, w io.Writer, srv Srv) error {
+	return handleIO(r, w, srv)
+}
+
 // Serve serves srv on the given address, addr.
 func Serve(addr string, srv Srv) error {
 	l, err := net.Listen("tcp", addr)
@@ -117,7 +185,14 @@ func Serve(addr string, srv Srv) error {
 		if err != nil {
 			return err
 		}
-		go handleConnection(a, srv)
+		go func(nc net.Conn, srv Srv) {
+			defer nc.Close()
+			read := bufio.NewReader(nc)
+			err := ServeReadWriter(read, nc, srv)
+			if err != nil {
+				log.Printf("%v\n", err)
+			}
+		}(a, srv)
 	}
 }
 

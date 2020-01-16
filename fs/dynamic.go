@@ -4,12 +4,19 @@ import (
 	"github.com/knusbaum/go9p/proto"
 )
 
+// DynamicFile is a File implementation that will serve dynamic content.
+// Every time a client opens the DynamicFile, content is generated for
+// the opening fid with the function genContent, which is passed to NewDynamicFile.
+// Subsequent reads on the fid will return byte ranges from that content
+// generated when the fid was opened. Closing the fid releases the content.
 type DynamicFile struct {
 	BaseFile
 	fidContent map[uint32][]byte
 	genContent func() []byte
 }
 
+// NewDynamicFile creates a new DynamicFile that will use getContent to
+// generate the file's content for each fid that opens it.
 func NewDynamicFile(s *proto.Stat, genContent func() []byte) *DynamicFile {
 	return &DynamicFile{
 		BaseFile:   BaseFile{fStat: *s},
@@ -46,6 +53,10 @@ func (f *DynamicFile) Close(fid uint32) error {
 	return nil
 }
 
+// WrappedFile takes an existing File and adds optional hooks for the
+// Open, Read, Write, and Close functions.
+// OpenF, ReadF, WriteF, and CloseF, if set, are called rather than
+// the File's Open, Read, Write, and Close functions.
 type WrappedFile struct {
 	File
 	OpenF  func(fid uint32, omode proto.Mode) error

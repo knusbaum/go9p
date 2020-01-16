@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/knusbaum/go9p/proto"
-	"github.com/knusbaum/go9p/fs"
 	"github.com/knusbaum/go9p"
+	"github.com/knusbaum/go9p/fs"
+	"github.com/knusbaum/go9p/proto"
 )
 
 func addEvent(f *fs.StaticFile, s string) {

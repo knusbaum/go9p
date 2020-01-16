@@ -23,7 +23,7 @@ type FSNode interface {
 
 // File represents a leaf node in the FS tree. It must implement
 // Open, Read, Write, and Close methods. fid is a unique number
-// representing an open file descriptor to the file. 
+// representing an open file descriptor to the file.
 // For each fid, Open will be called before Read, Write, or Close,
 // and should open a file in the given omode, or return an error.
 // If Open returns an error, fid is not valid. Following a
@@ -43,7 +43,7 @@ type File interface {
 	Close(fid uint32) error
 }
 
-// Dir represents a directory within the Filesystem. 
+// Dir represents a directory within the Filesystem.
 type Dir interface {
 	FSNode
 	Children() map[string]FSNode
@@ -69,7 +69,7 @@ func FullPath(f FSNode) string {
 
 // BaseFile provides a simple File implementation that
 // other implementations can base themselves off of.
-// On its own it's not too useful. Stat and WriteStat 
+// On its own it's not too useful. Stat and WriteStat
 // work as expected, as do Parent and SetParent.
 // Open always succeeds. Read always returns a zero-byte
 // slice, Write always fails, and Close always succeeds.
@@ -126,7 +126,7 @@ func (f *BaseFile) Close(fid uint32) error {
 	return nil
 }
 
-// The FS structure represents a hierarchical filesystem tree. 
+// The FS structure represents a hierarchical filesystem tree.
 // It must contain a Root Dir, but all of the function members are
 // optional. If provided, CreateFile is called when a client attempts
 // to create a file. Similarly, CreateDir is called when a client attempts
@@ -138,9 +138,9 @@ func (f *BaseFile) Close(fid uint32) error {
 // proto.TError. nil, nil is also an appropriate return pair, in which case a
 // proto.TError with a generic message will be returned to the client.
 //
-// FS is a tree structure. Every internal node should be a Dir - only 
+// FS is a tree structure. Every internal node should be a Dir - only
 // instances of Dir can have children. Instances of File can only be leaves of
-// the tree. 
+// the tree.
 type FS struct {
 	Root       Dir
 	CreateFile func(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (File, error)
@@ -178,7 +178,7 @@ func (fs *FS) NewQid(statMode uint32) proto.Qid {
 	}
 }
 
-// NewStat creates and returns a new proto.Stat object for use with a 
+// NewStat creates and returns a new proto.Stat object for use with a
 // FSNode. name will be the name of the node, and it will be owned by
 // user uid and group gid. mode is standard unix permissions bits, along
 // with any special mode bits (e.g. proto.DMDIR for directories)
@@ -199,7 +199,7 @@ func (fs *FS) NewStat(name, uid, gid string, mode uint32) *proto.Stat {
 }
 
 // RMFile is a function intended to be used with the WithRemoveFile Option.
-// RMFile simply enables the deletion of files and directories on the 
+// RMFile simply enables the deletion of files and directories on the
 // FS subject to usual permissions checks.
 func RMFile(fs *FS, f FSNode) error {
 	parent := f.Parent()
@@ -214,6 +214,8 @@ type Option func(*FS)
 // to create a file on the FS. The function f, if successful, should return
 // a File, which it should add to the parent Dir. If a file should not be
 // created, f can return an error which will be sent to the client.
+// Basic permissions checking is done by the FS before calling f, but any
+// other checking can be done by f.
 func WithCreateFile(f func(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (File, error)) Option {
 	return func(fs *FS) {
 		fs.CreateFile = f
@@ -224,6 +226,8 @@ func WithCreateFile(f func(fs *FS, parent Dir, user, name string, perm uint32, m
 // to create a directory on the FS. The function f, if successful, should return
 // a Dir, which it should add to the parent Dir. If a file should not be
 // created, f can return an error which will be sent to the client.
+// Basic permissions checking is done by the FS before calling f, but any
+// other checking can be done by f.
 func WithCreateDir(f func(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (Dir, error)) Option {
 	return func(fs *FS) {
 		fs.CreateDir = f

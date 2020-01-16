@@ -1,8 +1,8 @@
 package proto
 
 import (
-	"io"
 	"encoding/binary"
+	"io"
 )
 
 func readBytes(r io.Reader, buff []byte) error {

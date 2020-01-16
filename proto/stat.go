@@ -5,8 +5,8 @@ import "fmt"
 const (
 	DMDIR    = uint32(1 << 31)
 	DMAPPEND = uint32(1 << 30)
-	DMEXCL = uint32(1 << 29)
-	DMTMP = uint32(1 << 26)
+	DMEXCL   = uint32(1 << 29)
+	DMTMP    = uint32(1 << 26)
 )
 
 type TStat struct {
@@ -39,7 +39,7 @@ func (stat *TStat) Compose() []byte {
 }
 
 type Stat struct {
-	Type  uint16
+	Type   uint16
 	Dev    uint32
 	Qid    Qid
 	Mode   uint32

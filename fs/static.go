@@ -6,11 +6,17 @@ import (
 	"github.com/knusbaum/go9p/proto"
 )
 
+// StaticFile implements File. It is a very simple
+// implementation that allows the reading and writing
+// of a byte slice that every client sees. Writes modify
+// the content and reads serve the content.
 type StaticFile struct {
 	BaseFile
 	Data []byte
 }
 
+// NewStaticFile returns a StaticFile that contains the
+// byte slice data.
 func NewStaticFile(s *proto.Stat, data []byte) *StaticFile {
 	s.Length = uint64(len(data))
 	return &StaticFile{
@@ -64,6 +70,8 @@ func (f *StaticFile) Write(fid uint32, offset uint64, data []byte) (uint32, erro
 	return uint32(len(data)), nil
 }
 
+// StaticDir is a Dir that simply keeps track of a
+// set of child Files.
 type StaticDir struct {
 	dStat    proto.Stat
 	children map[string]FSNode
@@ -133,12 +141,18 @@ func (d *StaticDir) DeleteChild(name string) error {
 	return nil
 }
 
+// CreateStaticFile is a function meant to be passed to WithCreateFile.
+// It will add an empty StaticFile to the FS whenever a client attempts to
+// create a file.
 func CreateStaticFile(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (File, error) {
 	f := NewStaticFile(fs.NewStat(name, user, user, perm), []byte{})
 	parent.AddChild(f)
 	return f, nil
 }
 
+// CreateStaticDir is a function meant to be passed to WithCreateDir.
+// It will add an empty StaticDir to the FS whenever a client attempts to
+// create a directory.
 func CreateStaticDir(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (Dir, error) {
 	f := NewStaticDir(fs.NewStat(name, user, user, perm))
 	parent.AddChild(f)

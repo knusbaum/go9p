@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/knusbaum/go9p/fs"
 	"github.com/knusbaum/go9p"
+	"github.com/knusbaum/go9p/fs"
 )
 
 func main() {

@@ -5,8 +5,8 @@
 // io.Reader with the ParseCall function.
 //
 // The details of the protocol aren't documented in this package. Instead,
-// see the protocol RFC here: http://knusbaum.com/useful/rfc9p2000 
-// 
+// see the protocol RFC here: http://knusbaum.com/useful/rfc9p2000
+//
 // The RFC contains in-depth descriptions of the messages and what they mean.
 package proto
 

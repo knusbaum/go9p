@@ -181,7 +181,7 @@ func handleCall(call proto.FCall, srv Srv, conn Conn) (proto.FCall, error) {
 // It reads 9p2000 messages from r, handles them with srv, and
 // writes the responses to w.
 func ServeReadWriter(r io.Reader, w io.Writer, srv Srv) error {
-	return handleIO(r, w, srv)
+	return handleIOAsync(r, w, srv)
 }
 
 // Serve serves srv on the given address, addr.
@@ -217,6 +217,6 @@ func PostSrv(name string, srv Srv) error {
 		return err
 	}
 	defer f.Close()
-	err = handleIO(f, f, srv)
+	err = ServeReadWriter(f, f, srv)
 	return err
 }

@@ -1,3 +1,19 @@
+// Package fs is an package that implements a hierarchical filesystem as a struct, `FS`.
+// An `FS` contains a hierarchy of `Dir`s and `File`s. The package also contains other
+// types and functions useful for building 9p filesystems.
+//
+// Constructing simple filesystems is easy. For example, creating a filesystem with
+// a single file with static contents "Hello, World!" can be done as follows:
+//		staticFS := fs.NewFS("glenda", "glenda", 0555)
+//		staticFS.Root.AddChild(fs.NewStaticFile(
+//			staticFS.NewStat("name.of.file", "owner.name", "group.name", 0444), 
+//			[]byte("Hello, World!\n"),
+//		))
+//
+// The filesystem can be served with one of the functions from github.com/knusbaum/go9p:
+//		go9p.PostSrv("example", staticFS.Server())
+//
+// There are more examples in this package and in github.com/knusbaum/go9p/examples
 package fs
 
 import (

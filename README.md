@@ -3,7 +3,7 @@ This is an implementation of the 9p2000 protocol in Go.
 
 There are a couple packages here.
 
-[`github.com/knusbaum/go9p`](http://godoc.org/github.com/knusbaum/go9p) on its own just contains an interface definition for a 9p2000 server, `Srv`.
+[`github.com/knusbaum/go9p`](http://godoc.org/github.com/knusbaum/go9p) just contains an interface definition for a 9p2000 server, `Srv`.
 along with a few functions that will serve the 9p2000 protocol using a `Srv`.
 
 [`github.com/knusbaum/go9p/proto`](http://godoc.org/github.com/knusbaum/go9p/proto) is the protocol implementation. It is used by the other packages to

@@ -1,3 +1,13 @@
+// Package go9p contains contains an interface definition for a 9p2000 server, `Srv`.
+// along with a few functions that will serve the 9p2000 protocol using a `Srv`.
+//
+// Most people wanting to implement a 9p filesystem should start in the subpackage
+// github.com/knusbaum/go9p/fs, which contains tools for constructing a file system 
+// which can be served using the functions in this package.
+//
+// The subpackage github.com/knusbaum/go9p/proto contains the protocol implementation.
+// It is used by the other packages to send and receive 9p2000 messages. It may be
+// useful to someone who wants to investigate 9p2000 at the protocol level.
 package go9p
 
 import (

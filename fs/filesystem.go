@@ -1,5 +1,5 @@
-// Package fs is an package that implements a hierarchical filesystem as a struct, `FS`.
-// An `FS` contains a hierarchy of `Dir`s and `File`s. The package also contains other
+// Package fs is an package that implements a hierarchical filesystem as a struct, FS. 
+// An FS contains a hierarchy of Dirs and Files. The package also contains other
 // types and functions useful for building 9p filesystems.
 //
 // Constructing simple filesystems is easy. For example, creating a filesystem with
@@ -83,12 +83,15 @@ func FullPath(f FSNode) string {
 	return strings.Replace(fp+"/"+f.Stat().Name, "//", "/", -1)
 }
 
-// BaseFile provides a simple File implementation that
-// other implementations can base themselves off of.
-// On its own it's not too useful. Stat and WriteStat
-// work as expected, as do Parent and SetParent.
-// Open always succeeds. Read always returns a zero-byte
-// slice, Write always fails, and Close always succeeds.
+// BaseFile provides a simple File implementation that other implementations
+// can base themselves off of. On its own it's not too useful. Stat and
+// WriteStat work as expected, as do Parent and SetParent. Open always
+// succeeds. Read always returns a zero-byte slice, Write always fails, and
+// Close always succeeds.
+//
+// Note, BaseFile is most useful when you want to create a custom File type
+// rather than creating a single special file. Most of the time, you may
+// want to use WrappedFile for custom behavior.
 type BaseFile struct {
 	fStat  proto.Stat
 	parent Dir

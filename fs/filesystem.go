@@ -53,10 +53,10 @@ type FSNode interface {
 // See StaticFile for a simple File implementation.
 type File interface {
 	FSNode
-	Open(fid uint32, omode proto.Mode) error
-	Read(fid uint32, offset uint64, count uint64) ([]byte, error)
-	Write(fid uint32, offset uint64, data []byte) (uint32, error)
-	Close(fid uint32) error
+	Open(fid uint64, omode proto.Mode) error
+	Read(fid uint64, offset uint64, count uint64) ([]byte, error)
+	Write(fid uint64, offset uint64, data []byte) (uint32, error)
+	Close(fid uint64) error
 }
 
 // Dir represents a directory within the Filesystem.
@@ -126,22 +126,22 @@ func (f *BaseFile) Parent() Dir {
 }
 
 // Open always succeeds.
-func (f *BaseFile) Open(fid uint32, omode proto.Mode) error {
+func (f *BaseFile) Open(fid uint64, omode proto.Mode) error {
 	return nil
 }
 
 // Read always returns an empty slice.
-func (f *BaseFile) Read(fid uint32, offset uint64, count uint64) ([]byte, error) {
+func (f *BaseFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
 	return []byte{}, nil
 }
 
 // Write always fails with an error.
-func (f *BaseFile) Write(fid uint32, offset uint64, data []byte) (uint32, error) {
+func (f *BaseFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
 	return 0, fmt.Errorf("Cannot write to file.")
 }
 
 // Close always succeeds.
-func (f *BaseFile) Close(fid uint32) error {
+func (f *BaseFile) Close(fid uint64) error {
 	return nil
 }
 

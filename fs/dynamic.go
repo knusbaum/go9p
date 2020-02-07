@@ -11,7 +11,7 @@ import (
 // generated when the fid was opened. Closing the fid releases the content.
 type DynamicFile struct {
 	BaseFile
-	fidContent map[uint32][]byte
+	fidContent map[uint64][]byte
 	genContent func() []byte
 }
 
@@ -20,19 +20,19 @@ type DynamicFile struct {
 func NewDynamicFile(s *proto.Stat, genContent func() []byte) *DynamicFile {
 	return &DynamicFile{
 		BaseFile:   BaseFile{fStat: *s},
-		fidContent: make(map[uint32][]byte),
+		fidContent: make(map[uint64][]byte),
 		genContent: genContent,
 	}
 }
 
-func (f *DynamicFile) Open(fid uint32, omode proto.Mode) error {
+func (f *DynamicFile) Open(fid uint64, omode proto.Mode) error {
 	f.Lock()
 	defer f.Unlock()
 	f.fidContent[fid] = f.genContent()
 	return nil
 }
 
-func (f *DynamicFile) Read(fid uint32, offset uint64, count uint64) ([]byte, error) {
+func (f *DynamicFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
 	f.RLock()
 	defer f.RUnlock()
 
@@ -48,7 +48,7 @@ func (f *DynamicFile) Read(fid uint32, offset uint64, count uint64) ([]byte, err
 	return data[offset : offset+count], nil
 }
 
-func (f *DynamicFile) Close(fid uint32) error {
+func (f *DynamicFile) Close(fid uint64) error {
 	delete(f.fidContent, fid)
 	return nil
 }
@@ -59,34 +59,34 @@ func (f *DynamicFile) Close(fid uint32) error {
 // the File's Open, Read, Write, and Close functions.
 type WrappedFile struct {
 	File
-	OpenF  func(fid uint32, omode proto.Mode) error
-	ReadF  func(fid uint32, offset uint64, count uint64) ([]byte, error)
-	WriteF func(fid uint32, offset uint64, data []byte) (uint32, error)
-	CloseF func(fid uint32) error
+	OpenF  func(fid uint64, omode proto.Mode) error
+	ReadF  func(fid uint64, offset uint64, count uint64) ([]byte, error)
+	WriteF func(fid uint64, offset uint64, data []byte) (uint32, error)
+	CloseF func(fid uint64) error
 }
 
-func (f *WrappedFile) Open(fid uint32, omode proto.Mode) error {
+func (f *WrappedFile) Open(fid uint64, omode proto.Mode) error {
 	if f.OpenF != nil {
 		return f.OpenF(fid, omode)
 	}
 	return f.File.Open(fid, omode)
 }
 
-func (f *WrappedFile) Read(fid uint32, offset uint64, count uint64) ([]byte, error) {
+func (f *WrappedFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
 	if f.ReadF != nil {
 		return f.ReadF(fid, offset, count)
 	}
 	return f.File.Read(fid, offset, count)
 }
 
-func (f *WrappedFile) Write(fid uint32, offset uint64, data []byte) (uint32, error) {
+func (f *WrappedFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
 	if f.WriteF != nil {
 		return f.WriteF(fid, offset, data)
 	}
 	return f.File.Write(fid, offset, data)
 }
 
-func (f *WrappedFile) Close(fid uint32) error {
+func (f *WrappedFile) Close(fid uint64) error {
 	if f.CloseF != nil {
 		return f.CloseF(fid)
 	}

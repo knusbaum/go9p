@@ -27,19 +27,19 @@ func WrapEvents(evFile *fs.StaticFile, f fs.File) fs.File {
 	fname := f.Stat().Name
 	return &fs.WrappedFile{
 		File: f,
-		OpenF: func(fid uint32, omode proto.Mode) error {
+		OpenF: func(fid uint64, omode proto.Mode) error {
 			addEvent(evFile, fmt.Sprintf("Open %s: mode: %d", fname, omode))
 			return f.Open(fid, omode)
 		},
-		ReadF: func(fid uint32, offset uint64, count uint64) ([]byte, error) {
+		ReadF: func(fid uint64, offset uint64, count uint64) ([]byte, error) {
 			addEvent(evFile, fmt.Sprintf("Read %s: offset %d, count %d", fname, offset, count))
 			return f.Read(fid, offset, count)
 		},
-		WriteF: func(fid uint32, offset uint64, data []byte) (uint32, error) {
+		WriteF: func(fid uint64, offset uint64, data []byte) (uint32, error) {
 			addEvent(evFile, fmt.Sprintf("Write %s: offset %d, data %d bytes", fname, offset, len(data)))
 			return f.Write(fid, offset, data)
 		},
-		CloseF: func(fid uint32) error {
+		CloseF: func(fid uint64) error {
 			addEvent(evFile, fmt.Sprintf("Close %s", fname))
 			return f.Close(fid)
 		},
@@ -60,7 +60,7 @@ func main() {
 	utilFS.Root.AddChild(
 		WrapEvents(events, &fs.WrappedFile{
 			File: fs.NewBaseFile(utilFS.NewStat("random", "glenda", "glenda", 0444)),
-			ReadF: func(fid uint32, offset uint64, count uint64) ([]byte, error) {
+			ReadF: func(fid uint64, offset uint64, count uint64) ([]byte, error) {
 				bs := make([]byte, count)
 				rand.Reader.Read(bs)
 				return bs, nil

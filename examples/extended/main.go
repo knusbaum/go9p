@@ -42,7 +42,7 @@ func main() {
 
 	extendedFS.Root.AddChild(&fs.WrappedFile{
 		File: fs.NewBaseFile(extendedFS.NewStat("wrappedRand", "glenda", "glenda", 0666)),
-		ReadF: func(fid uint32, offset uint64, count uint64) ([]byte, error) {
+		ReadF: func(fid uint64, offset uint64, count uint64) ([]byte, error) {
 			bs := make([]byte, count)
 			rand.Read(bs)
 			return bs, nil

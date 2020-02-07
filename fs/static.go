@@ -32,7 +32,7 @@ func (f *StaticFile) Stat() proto.Stat {
 	return f.fStat
 }
 
-func (f *StaticFile) Open(fid uint32, omode proto.Mode) error {
+func (f *StaticFile) Open(fid uint64, omode proto.Mode) error {
 	if omode&proto.Otrunc > 0 {
 		f.Lock()
 		defer f.Unlock()
@@ -41,7 +41,7 @@ func (f *StaticFile) Open(fid uint32, omode proto.Mode) error {
 	return nil
 }
 
-func (f *StaticFile) Read(fid uint32, offset uint64, count uint64) ([]byte, error) {
+func (f *StaticFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
 	f.RLock()
 	defer f.RUnlock()
 	flen := uint64(len(f.Data))
@@ -54,7 +54,7 @@ func (f *StaticFile) Read(fid uint32, offset uint64, count uint64) ([]byte, erro
 	return f.Data[offset : offset+count], nil
 }
 
-func (f *StaticFile) Write(fid uint32, offset uint64, data []byte) (uint32, error) {
+func (f *StaticFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
 	f.Lock()
 	defer f.Unlock()
 	flen := uint64(len(f.Data))

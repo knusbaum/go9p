@@ -90,8 +90,8 @@ func handleIO(r io.Reader, w io.Writer, srv Srv) error {
 }
 
 func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
-	incoming := make(chan proto.FCall)
-	outgoing := make(chan proto.FCall)
+	incoming := make(chan proto.FCall, 100)
+	outgoing := make(chan proto.FCall, 100)
 
 	conn := srv.NewConn()
 
@@ -112,7 +112,7 @@ func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
 
 	var workerWG sync.WaitGroup
 	defer func() { workerWG.Wait(); close(outgoing) }()
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 100; i++ {
 		workerWG.Add(1)
 		go func() {
 			defer workerWG.Done()

@@ -85,7 +85,7 @@ func ExampleWrappedFile() {
 	randomFS := fs.NewFS("glenda", "glenda", 0555)
 	randomFS.Root.AddChild(fs.WrappedFile{
 		File: fs.NewBaseFile(randomFS.NewStat("name.of.file", "owner.name", "group.name", 0444)),
-		ReadF: func(fid uint32, offset uint64, count uint64) ([]byte, error) {
+		ReadF: func(fid uint64, offset uint64, count uint64) ([]byte, error) {
 			bs := make([]byte, count)
 			rand.Read(bs)
 			return bs, nil

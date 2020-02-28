@@ -2,7 +2,7 @@
 // along with a few functions that will serve the 9p2000 protocol using a `Srv`.
 //
 // Most people wanting to implement a 9p filesystem should start in the subpackage
-// github.com/knusbaum/go9p/fs, which contains tools for constructing a file system 
+// github.com/knusbaum/go9p/fs, which contains tools for constructing a file system
 // which can be served using the functions in this package.
 //
 // The subpackage github.com/knusbaum/go9p/proto contains the protocol implementation.
@@ -138,7 +138,11 @@ func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
 			log.Printf("Protocol error: %v\n", err)
 			return err
 		}
-		incoming <- call
+		select {
+		case incoming <- call:
+		default:
+			panic("FAILED TO QUEUE INCOMING!")
+		}
 	}
 
 	return nil
@@ -212,11 +216,12 @@ func Serve(addr string, srv Srv) error {
 // determined by 9fans.net/go/plan9/client Namespace. On Plan9 it
 // is posted in the usual place, /srv.
 func PostSrv(name string, srv Srv) error {
-	f, err := postfd(name)
+	f, handle, err := postfd(name)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	defer handle.Close()
 	err = ServeReadWriter(f, f, srv)
 	return err
 }

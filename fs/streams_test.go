@@ -102,4 +102,43 @@ func TestStreamReader(t *testing.T) {
 		}()
 		wg.Wait()
 	})
+
+	t.Run("Blocking", func(t *testing.T) {
+		assert := assert.New(t)
+		// Slow readers shouldn't get killed
+		s := NewStream(2, true)
+		r := s.AddReader()
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			for i := 0; i < 20; i++ {
+				n, err := s.Write([]byte("a"))
+				assert.NoError(err)
+				assert.Equal(1, n)
+			}
+			s.Close()
+			wg.Done()
+		}()
+
+		wg.Add(1)
+		go func() {
+			bs := make([]byte, 2000)
+			curr := bs
+			read := 0
+			i := 0
+			for {
+				n, err := r.Read(curr)
+				if err != nil {
+					break
+				}
+				curr = curr[n:]
+				read += n
+				time.Sleep(200 * time.Millisecond)
+				i += 1
+			}
+			assert.Equal(20, read)
+			wg.Done()
+		}()
+		wg.Wait()
+	})
 }

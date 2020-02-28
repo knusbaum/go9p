@@ -46,16 +46,17 @@ func (r *StreamReader) Read(p []byte) (n int, err error) {
 }
 
 type Stream struct {
-	readers []*StreamReader
-	bufflen int
-	closed  bool
+	readers       []*StreamReader
+	bufflen       int
+	closed        bool
 	blockOnReader bool
 	sync.Mutex
 }
 
 func NewStream(buffer int, blockOnReader bool) *Stream {
 	return &Stream{
-		bufflen: buffer,
+		readers:       nil,
+		bufflen:       buffer,
 		blockOnReader: blockOnReader,
 	}
 }
@@ -87,6 +88,7 @@ func (s *Stream) RemoveReader(r *StreamReader) {
 		}
 	}
 	s.readers = s.readers[:k]
+	close(r.read)
 }
 
 func (s *Stream) Write(p []byte) (n int, err error) {
@@ -97,7 +99,12 @@ func (s *Stream) Write(p []byte) (n int, err error) {
 		cp := make([]byte, len(p))
 		copy(cp, p)
 		if s.blockOnReader {
+			// This is a problem. If a reader falls behind and then closes the file later,
+			// this call will never return.
+			// need to timeout and retry unlocking the stream so that
+			// the reader can be removed.
 			reader.read <- cp
+			k++
 		} else {
 			select {
 			case reader.read <- cp:
@@ -141,13 +148,21 @@ func NewStreamFile(stat *proto.Stat, s *Stream) *StreamFile {
 }
 
 func (f *StreamFile) Open(fid uint64, omode proto.Mode) error {
-	f.fidReader[fid] = f.s.AddReader()
+	if omode == proto.Oread ||
+		omode == proto.Ordwr ||
+		omode == proto.Oexec {
+		f.fidReader[fid] = f.s.AddReader()
+	}
 	return nil
 }
 
 func (f *StreamFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
 	bs := make([]byte, count)
-	r := f.fidReader[fid]
+	r, ok := f.fidReader[fid]
+	if !ok {
+		// This really shouldn't happen.
+		return nil, fmt.Errorf("Failed to read stream. Not opened for read.")
+	}
 	n, err := r.Read(bs)
 	if err != nil {
 		return nil, err
@@ -162,8 +177,10 @@ func (f *StreamFile) Write(fid uint64, offset uint64, data []byte) (uint32, erro
 }
 
 func (f *StreamFile) Close(fid uint64) error {
-	r := f.fidReader[fid]
-	f.s.RemoveReader(r)
+	r, ok := f.fidReader[fid]
+	if ok {
+		f.s.RemoveReader(r)
+		delete(f.fidReader, fid)
+	}
 	return nil
 }
-

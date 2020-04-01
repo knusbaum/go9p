@@ -221,7 +221,9 @@ func PostSrv(name string, srv Srv) error {
 		return err
 	}
 	defer f.Close()
-	defer handle.Close()
+	if handle != nil {
+		defer handle.Close()
+	}
 	err = ServeReadWriter(f, f, srv)
 	return err
 }

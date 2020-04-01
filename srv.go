@@ -67,10 +67,10 @@ func newPipePair() (*pipe, *pipe) {
 	return p1, p2
 }
 
-func postfd(name string) (readWriteCloser, error) {
+func postfd(name string) (readWriteCloser, *os.File, error) {
 	ns := client.Namespace()
 	if err := os.MkdirAll(ns, 0700); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	name = filepath.Join(ns, name)
 
@@ -82,5 +82,5 @@ func postfd(name string) (readWriteCloser, error) {
 		}
 		f2.Close()
 	}()
-	return f1, nil
+	return f1, nil, nil
 }

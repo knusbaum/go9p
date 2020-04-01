@@ -2,10 +2,10 @@ package fs
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"sync"
 	"time"
-	"os"
-	"io"
 
 	"github.com/knusbaum/go9p/proto"
 )
@@ -162,7 +162,7 @@ type BlockingStream struct {
 
 func NewBlockingStream(buffer int, waitForReaders bool) *BlockingStream {
 	return &BlockingStream{
-		baseStream: baseStream{bufflen: buffer},
+		baseStream:     baseStream{bufflen: buffer},
 		waitForReaders: waitForReaders,
 	}
 }
@@ -282,12 +282,11 @@ func (f *StreamFile) Close(fid uint64) error {
 	return nil
 }
 
-
 type fileReader struct {
-	f *os.File
+	f      *os.File
 	signal chan struct{}
 	live   bool
-	t *time.Timer
+	t      *time.Timer
 }
 
 func (r *fileReader) Read(p []byte) (n int, err error) {
@@ -329,10 +328,10 @@ func (r *fileReader) Close() {
 }
 
 type SavedStream struct {
-	f *os.File
-	path string
+	f       *os.File
+	path    string
 	readers []*fileReader
-	closed bool
+	closed  bool
 	sync.Mutex
 }
 
@@ -342,8 +341,8 @@ func NewSavedStream(path string) (*SavedStream, error) {
 		return nil, err
 	}
 	return &SavedStream{
-		f: f, 
-		path: path,
+		f:      f,
+		path:   path,
 		closed: false,
 	}, nil
 }
@@ -354,17 +353,17 @@ func (s *SavedStream) AddReader() StreamReader {
 	f, err := os.Open(s.path)
 	if err != nil {
 		return &fileReader{
-			f: nil,
+			f:      nil,
 			signal: make(chan struct{}, 0),
-			live: false,
+			live:   false,
 		}
 	}
 
 	reader := &fileReader{
-		f: f,
+		f:      f,
 		signal: make(chan struct{}, 1),
-		live: true,
-		t: time.NewTimer(500 * time.Millisecond),
+		live:   true,
+		t:      time.NewTimer(500 * time.Millisecond),
 	}
 
 	if s.closed {
@@ -405,7 +404,7 @@ func (s *SavedStream) Write(p []byte) (n int, err error) {
 	for i, reader := range s.readers {
 		if reader.live {
 			select {
-			case reader.signal<- struct{}{}:
+			case reader.signal <- struct{}{}:
 			default:
 			}
 			if i != k {

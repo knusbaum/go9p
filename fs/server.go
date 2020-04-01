@@ -24,7 +24,7 @@ func newFidInfo(n FSNode) *fidInfo {
 }
 
 type conn struct {
-	uname string
+	uname  string
 	connID uint32
 	//fids  map[uint32]*fidInfo
 	fids sync.Map
@@ -42,14 +42,14 @@ func (c *conn) toConnFid(fid uint32) uint64 {
 }
 
 type server struct {
-	fs *FS
+	fs         *FS
 	currConnId uint32
 }
 
 // Server returns a go9p.Srv instance which will
 // serve the 9p2000 protocol.
 func (fs *FS) Server() go9p.Srv {
-	return &server{fs:fs}
+	return &server{fs: fs}
 }
 
 func (s *server) NewConn() go9p.Conn {

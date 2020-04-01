@@ -1,4 +1,4 @@
-// Package fs is an package that implements a hierarchical filesystem as a struct, FS. 
+// Package fs is an package that implements a hierarchical filesystem as a struct, FS.
 // An FS contains a hierarchy of Dirs and Files. The package also contains other
 // types and functions useful for building 9p filesystems.
 //
@@ -6,7 +6,7 @@
 // a single file with static contents "Hello, World!" can be done as follows:
 //		staticFS := fs.NewFS("glenda", "glenda", 0555)
 //		staticFS.Root.AddChild(fs.NewStaticFile(
-//			staticFS.NewStat("name.of.file", "owner.name", "group.name", 0444), 
+//			staticFS.NewStat("name.of.file", "owner.name", "group.name", 0444),
 //			[]byte("Hello, World!\n"),
 //		))
 //

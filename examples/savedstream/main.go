@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
-	"fmt"
 
 	"github.com/knusbaum/go9p"
 	"github.com/knusbaum/go9p/fs"

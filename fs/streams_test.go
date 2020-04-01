@@ -1,11 +1,11 @@
 package fs
 
 import (
+	"math/rand"
+	"os"
 	"sync"
 	"testing"
 	"time"
-	"os"
-	"math/rand"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -24,14 +24,14 @@ func TestStream(t *testing.T) {
 		"async":    func() Stream { return NewAsyncStream(50) },
 		"blocking": func() Stream { return NewBlockingStream(50, false) },
 		"skipping": func() Stream { return NewSkippingStream(50) },
-		"saved": func() Stream { 
+		"saved": func() Stream {
 			os.Remove(testFile)
 			s, err := NewSavedStream(testFile)
 			assert.NoError(t, err)
-			return s 
+			return s
 		},
 	} {
-		t.Run(name + "/ReadWrite", func(t *testing.T) {
+		t.Run(name+"/ReadWrite", func(t *testing.T) {
 			assert := assert.New(t)
 			s := sf()
 
@@ -44,10 +44,10 @@ func TestStream(t *testing.T) {
 			assert.Equal(7, n)
 		})
 
-		t.Run(name + "/normal", func(t *testing.T) {
+		t.Run(name+"/normal", func(t *testing.T) {
 			assert := assert.New(t)
 			s := sf()
-	
+
 			r := s.AddReader()
 			n, err := s.Write([]byte("Hello"))
 			assert.NoError(err)
@@ -64,7 +64,7 @@ func TestStream(t *testing.T) {
 			assert.Equal("HelloGoodbye", string(readbs[:n]))
 		})
 
-		t.Run(name + "/SlowReader", func(t *testing.T) {
+		t.Run(name+"/SlowReader", func(t *testing.T) {
 			assert := assert.New(t)
 			s := sf()
 
@@ -161,7 +161,7 @@ func TestSkippingStream(t *testing.T) {
 		s.Write([]byte("a"))
 		s.Write([]byte("b"))
 		s.Write([]byte("c"))
-	
+
 		bs := make([]byte, 2000)
 		n, err := r.Read(bs)
 		assert.NoError(err)

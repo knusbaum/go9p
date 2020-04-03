@@ -1,9 +1,11 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -15,8 +17,14 @@ type StreamReader interface {
 	Close()
 }
 
+type StreamReadWriter interface {
+	StreamReader
+	Write(p []byte) (n int, err error)
+}
+
 type chanReader struct {
 	read   chan []byte
+	write  chan []byte
 	unread []byte
 	live   bool
 }
@@ -53,6 +61,13 @@ func (r *chanReader) Read(p []byte) (n int, err error) {
 	return
 }
 
+func (r *chanReader) Write(p []byte) (n int, err error) {
+	bs := make([]byte, len(p))
+	copy(bs, p)
+	r.write <- bs
+	return len(p), nil
+}
+
 func (r *chanReader) Close() {
 	r.live = false
 	close(r.read)
@@ -65,25 +80,44 @@ type Stream interface {
 	Close() error
 }
 
+type BiDiStream interface {
+	Stream
+	AddReadWriter() StreamReadWriter
+	Read(p []byte) (n int, err error)
+}
+
 type baseStream struct {
 	readers []*chanReader
+	read    []byte
 	bufflen int
 	closed  bool
+	wake    chan struct{} // Used to wake up a Read if readers change.
 	sync.Mutex
 }
 
+func (s *baseStream) wakeup() {
+	close(s.wake)
+	s.wake = make(chan struct{}, 0)
+}
+
 func (s *baseStream) AddReader() StreamReader {
+	return s.AddReadWriter()
+}
+
+func (s *baseStream) AddReadWriter() StreamReadWriter {
 	s.Lock()
 	defer s.Unlock()
 	reader := &chanReader{
-		read: make(chan []byte, s.bufflen),
-		live: true,
+		read:  make(chan []byte, s.bufflen),
+		write: make(chan []byte, 1),
+		live:  true,
 	}
 	if s.closed {
 		reader.Close()
 	} else {
 		s.readers = append(s.readers, reader)
 	}
+	s.wakeup()
 	return reader
 }
 
@@ -102,18 +136,62 @@ func (s *baseStream) RemoveReader(r StreamReader) {
 	}
 	s.readers = s.readers[:k]
 	r.Close()
+	s.wakeup()
+}
+
+func (s *baseStream) makeCases() []reflect.SelectCase {
+	s.Lock()
+	defer s.Unlock()
+	cases := make([]reflect.SelectCase, len(s.readers)+1)
+	cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(s.wake)}
+	for i, rdr := range s.readers {
+		cases[i+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(rdr.write)}
+	}
+	if s.closed {
+		cases = append(cases, reflect.SelectCase{Dir: reflect.SelectDefault})
+	}
+
+	return cases
+}
+
+func (s *baseStream) Read(p []byte) (n int, err error) {
+	if s.read == nil || len(s.read) == 0 {
+		for {
+			cases := s.makeCases()
+			i, v, ok := reflect.Select(cases)
+			if i == 0 {
+				// Index zero is the s.wake channel. It means we need to loop since
+				// some baseStream state has changed.
+				continue
+			}
+			if !ok {
+				// Check if we're closed and hit default.
+				if cases[i].Dir == reflect.SelectDefault {
+					return 0, io.EOF
+				}
+				// This reader has closed the write channel.
+				cases = append(cases[:i], cases[i+1:]...)
+				continue
+			}
+			s.read = v.Interface().([]byte)
+			break
+		}
+	}
+
+	n = copy(p, s.read)
+	s.read = s.read[n:]
+	return
 }
 
 func (s *baseStream) Close() error {
 	s.Lock()
 	defer s.Unlock()
-	//fmt.Printf("Closing stream %p (%d readers)\n", s, len(s.readers))
 	for _, reader := range s.readers {
-		//fmt.Printf("Closing reader %p\n", reader)
 		reader.Close()
 	}
 	s.readers = nil
 	s.closed = true
+	s.wakeup()
 	return nil
 }
 
@@ -123,7 +201,10 @@ type AsyncStream struct {
 
 func NewAsyncStream(buffer int) *AsyncStream {
 	return &AsyncStream{
-		baseStream{bufflen: buffer},
+		baseStream{
+			bufflen: buffer,
+			wake:    make(chan struct{}, 0),
+		},
 	}
 }
 
@@ -162,7 +243,10 @@ type BlockingStream struct {
 
 func NewBlockingStream(buffer int, waitForReaders bool) *BlockingStream {
 	return &BlockingStream{
-		baseStream:     baseStream{bufflen: buffer},
+		baseStream: baseStream{
+			bufflen: buffer,
+			wake:    make(chan struct{}, 0),
+		},
 		waitForReaders: waitForReaders,
 	}
 }
@@ -205,7 +289,10 @@ type SkippingStream struct {
 
 func NewSkippingStream(buffer int) *SkippingStream {
 	return &SkippingStream{
-		baseStream{bufflen: buffer},
+		baseStream{
+			bufflen: buffer,
+			wake:    make(chan struct{}, 0),
+		},
 	}
 }
 
@@ -223,7 +310,6 @@ func (s *SkippingStream) Write(p []byte) (n int, err error) {
 		select {
 		case reader.read <- cp:
 		case <-t.C:
-			fmt.Println("Skipping")
 			// Timed out. Skip this message.
 		}
 	}
@@ -236,7 +322,20 @@ type StreamFile struct {
 	fidReader map[uint64]StreamReader
 }
 
-func NewStreamFile(stat *proto.Stat, s Stream) *StreamFile {
+type BiDiStreamFile struct {
+	*BaseFile
+	s         BiDiStream
+	fidReader map[uint64]StreamReadWriter
+}
+
+func NewStreamFile(stat *proto.Stat, s Stream) File {
+	if bidi, ok := s.(BiDiStream); ok {
+		return &BiDiStreamFile{
+			BaseFile:  NewBaseFile(stat),
+			s:         bidi,
+			fidReader: make(map[uint64]StreamReadWriter),
+		}
+	}
 	return &StreamFile{
 		BaseFile:  NewBaseFile(stat),
 		s:         s,
@@ -245,11 +344,11 @@ func NewStreamFile(stat *proto.Stat, s Stream) *StreamFile {
 }
 
 func (f *StreamFile) Open(fid uint64, omode proto.Mode) error {
-	if omode == proto.Oread ||
-		omode == proto.Ordwr ||
-		omode == proto.Oexec {
-		f.fidReader[fid] = f.s.AddReader()
+	if omode == proto.Owrite ||
+		omode == proto.Ordwr {
+		return errors.New("Cannot open this stream for writing.")
 	}
+	f.fidReader[fid] = f.s.AddReader()
 	return nil
 }
 
@@ -269,11 +368,49 @@ func (f *StreamFile) Read(fid uint64, offset uint64, count uint64) ([]byte, erro
 }
 
 func (f *StreamFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
-	n, err := f.s.Write(data)
-	return uint32(n), err
+	return 0, errors.New("Cannot write to this stream.")
 }
 
 func (f *StreamFile) Close(fid uint64) error {
+	r, ok := f.fidReader[fid]
+	if ok {
+		f.s.RemoveReader(r)
+		delete(f.fidReader, fid)
+	}
+	return nil
+}
+
+func (f *BiDiStreamFile) Open(fid uint64, omode proto.Mode) error {
+	f.fidReader[fid] = f.s.AddReadWriter()
+	return nil
+}
+
+func (f *BiDiStreamFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
+	bs := make([]byte, count)
+	r, ok := f.fidReader[fid]
+	if !ok {
+		// This really shouldn't happen.
+		return nil, fmt.Errorf("Failed to read stream. Server error.")
+	}
+	n, err := r.Read(bs)
+	if err != nil {
+		return nil, err
+	}
+	bs = bs[:n]
+	return bs, nil
+}
+
+func (f *BiDiStreamFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
+	r, ok := f.fidReader[fid]
+	if !ok {
+		// This really shouldn't happen.
+		return 0, fmt.Errorf("Failed to write stream. Server error.")
+	}
+	n, err := r.Write(data)
+	return uint32(n), err
+}
+
+func (f *BiDiStreamFile) Close(fid uint64) error {
 	r, ok := f.fidReader[fid]
 	if ok {
 		f.s.RemoveReader(r)

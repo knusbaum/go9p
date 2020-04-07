@@ -59,6 +59,7 @@ const (
 // message marshaled according the the 9P2000 protocol, ready to be
 // written to a stream.
 type FCall interface {
+	GetTag() uint16
 	String() string
 	Compose() []byte
 	parse([]byte) ([]byte, error)
@@ -68,6 +69,10 @@ type FCall interface {
 type Header struct {
 	Type uint8
 	Tag  uint16
+}
+
+func (fc *Header) GetTag() uint16 {
+	return fc.Tag
 }
 
 func (fc *Header) String() string {

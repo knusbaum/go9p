@@ -41,10 +41,6 @@ type conn struct {
 	fids   sync.Map
 }
 
-//func (c *conn) Uname() string {
-//	return c.uname
-//}
-
 func (c *conn) toConnFid(fid uint32) uint64 {
 	bcid := uint64(c.connID)
 	bcid = bcid << 32
@@ -103,7 +99,7 @@ func (s *server) Auth(gc go9p.Conn, t *proto.TAuth) (proto.FCall, error) {
 
 	go func(s BiDiStream) {
 		defer s.Close()
-		ai, err := libauth.Proxy(s, "proto=p9any role=server user=%s", t.Uname)
+		ai, err := libauth.Proxy(s, "proto=p9any role=server")
 		if err != nil {
 			info.extra = err
 			log.Printf("Authentication Error: %s", err)

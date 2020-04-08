@@ -16,26 +16,34 @@ type fidInfo struct {
 	n          FSNode
 	openMode   proto.Mode
 	openOffset uint64
+	uname      string // uname inherited during walk.
 	extra      interface{}
 }
 
-func newFidInfo(n FSNode) *fidInfo {
+func newFidInfo(uname string, n FSNode) *fidInfo {
 	return &fidInfo{
 		n:        n,
 		openMode: proto.None,
+		uname:    uname,
+	}
+}
+
+func (i *fidInfo) deriveInfo(n FSNode) *fidInfo {
+	return &fidInfo{
+		n:        n,
+		openMode: proto.None,
+		uname:    i.uname,
 	}
 }
 
 type conn struct {
-	uname  string
 	connID uint32
-	//fids  map[uint32]*fidInfo
-	fids sync.Map
+	fids   sync.Map
 }
 
-func (c *conn) Uname() string {
-	return c.uname
-}
+//func (c *conn) Uname() string {
+//	return c.uname
+//}
 
 func (c *conn) toConnFid(fid uint32) uint64 {
 	bcid := uint64(c.connID)
@@ -57,7 +65,7 @@ func (fs *FS) Server() go9p.Srv {
 
 func (s *server) NewConn() go9p.Conn {
 	s.currConnId += 1
-	return &conn{uname: "none", connID: s.currConnId}
+	return &conn{connID: s.currConnId}
 }
 
 func (_ *server) Version(gc go9p.Conn, t *proto.TRVersion) (proto.FCall, error) {
@@ -113,8 +121,7 @@ func (s *server) Attach(gc go9p.Conn, t *proto.TAttach) (proto.FCall, error) {
 	c := gc.(*conn)
 
 	if !s.fs.doAuth {
-		c.uname = t.Uname
-		c.fids.Store(t.Fid, newFidInfo(s.fs.Root))
+		c.fids.Store(t.Fid, newFidInfo(t.Uname, s.fs.Root))
 		return &proto.RAttach{proto.Header{proto.Rattach, t.Tag}, s.fs.Root.Stat().Qid}, nil
 	}
 
@@ -128,11 +135,12 @@ func (s *server) Attach(gc go9p.Conn, t *proto.TAttach) (proto.FCall, error) {
 	}
 
 	ai := info.extra.(*libauth.AuthInfo)
+	// TODO: For some reason, these don't seem to need to match.
+	// User is authenticated as ai.Cuid, *not* necessarily as t.Uname.
 	//	if t.Uname != ai.Cuid {
 	//		return &proto.RError{proto.Header{t.Type, t.Tag}, "Bad attach uname"}, nil
 	//	}
-	c.uname = ai.Cuid
-	c.fids.Store(t.Fid, newFidInfo(s.fs.Root))
+	c.fids.Store(t.Fid, newFidInfo(ai.Cuid, s.fs.Root))
 	return &proto.RAttach{proto.Header{proto.Rattach, t.Tag}, s.fs.Root.Stat().Qid}, nil
 }
 
@@ -151,8 +159,7 @@ func (s *server) Walk(gc go9p.Conn, t *proto.TWalk) (proto.FCall, error) {
 	if t.Nwname > 0 && t.Wname[0] == ".." {
 		parent := file.Parent()
 		if parent != nil {
-			//c.fids[t.Newfid] = newFidInfo(parent)
-			c.fids.Store(t.Newfid, newFidInfo(parent))
+			c.fids.Store(t.Newfid, info.deriveInfo(parent))
 			qids := make([]proto.Qid, 1)
 			qids[0] = parent.Stat().Qid
 			return &proto.RWalk{proto.Header{proto.Rwalk, t.Tag}, 1, qids}, nil
@@ -184,8 +191,7 @@ func (s *server) Walk(gc go9p.Conn, t *proto.TWalk) (proto.FCall, error) {
 			return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "No such path"}, nil
 		}
 	}
-	//c.fids[t.Newfid] = newFidInfo(file)
-	c.fids.Store(t.Newfid, newFidInfo(file))
+	c.fids.Store(t.Newfid, info.deriveInfo(file))
 	return &proto.RWalk{proto.Header{proto.Rwalk, t.Tag}, uint16(len(qids)), qids}, nil
 }
 
@@ -200,7 +206,7 @@ func (_ *server) Open(gc go9p.Conn, t *proto.TOpen) (proto.FCall, error) {
 	if info.openMode != proto.None {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Fid already open."}, nil
 	}
-	if !openPermission(info.n, c.uname, t.Mode&0x0F) {
+	if !openPermission(info.n, info.uname, t.Mode&0x0F) {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 	}
 
@@ -236,7 +242,7 @@ func (s *server) Create(gc go9p.Conn, t *proto.TCreate) (proto.FCall, error) {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Bad Fid."}, nil
 	}
 	info := i.(*fidInfo)
-	if !openPermission(info.n, c.uname, proto.Owrite) {
+	if !openPermission(info.n, info.uname, proto.Owrite) {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 	}
 
@@ -245,13 +251,13 @@ func (s *server) Create(gc go9p.Conn, t *proto.TCreate) (proto.FCall, error) {
 		var err error
 		if t.Perm&proto.DMDIR != 0 {
 			if s.fs.CreateDir != nil {
-				new, err = s.fs.CreateDir(s.fs, dir, c.uname, t.Name, t.Perm, t.Mode)
+				new, err = s.fs.CreateDir(s.fs, dir, info.uname, t.Name, t.Perm, t.Mode)
 			} else {
 				err = fmt.Errorf("Cannot create directories.")
 			}
 		} else {
 			if s.fs.CreateFile != nil {
-				new, err = s.fs.CreateFile(s.fs, dir, c.uname, t.Name, t.Perm, t.Mode)
+				new, err = s.fs.CreateFile(s.fs, dir, info.uname, t.Name, t.Perm, t.Mode)
 			} else {
 				err = fmt.Errorf("Cannot create files.")
 			}
@@ -259,10 +265,9 @@ func (s *server) Create(gc go9p.Conn, t *proto.TCreate) (proto.FCall, error) {
 		if err != nil {
 			return &proto.RError{proto.Header{proto.Rerror, t.Tag}, err.Error()}, nil
 		}
-		info = newFidInfo(new)
+		info = info.deriveInfo(new)
 		info.openMode = proto.Mode(t.Mode)
 		info.openOffset = 0
-		//c.fids[t.Fid] = info
 		c.fids.Store(t.Fid, info)
 		if f, ok := new.(File); ok {
 			err := f.Open(c.toConnFid(t.Fid), proto.Mode(t.Mode))
@@ -409,7 +414,7 @@ func (s *server) Remove(gc go9p.Conn, t *proto.TRemove) (proto.FCall, error) {
 	}
 	info := i.(*fidInfo)
 
-	if !openPermission(info.n, c.uname, proto.Owrite) {
+	if !openPermission(info.n, info.uname, proto.Owrite) {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 	}
 
@@ -482,7 +487,7 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 
 	stat := info.n.Stat()
 	newstat := &t.Stat
-	relation := userRelation(c.uname, info.n)
+	relation := userRelation(info.uname, info.n)
 
 	{
 		// Need to check all this stuff before we change *ANYTHING*
@@ -495,7 +500,7 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 		}
 
 		if newstat.Length != math.MaxUint64 {
-			if !openPermission(info.n, c.uname, proto.Owrite) {
+			if !openPermission(info.n, info.uname, proto.Owrite) {
 				fmt.Println("Can't alter length. Don't have write permission.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
@@ -516,8 +521,8 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 		}
 
 		if len(newstat.Gid) != 0 {
-			if info.n.Stat().Uid != c.uname ||
-				!userInGroup(c.uname, newstat.Gid) {
+			if info.n.Stat().Uid != info.uname ||
+				!userInGroup(info.uname, newstat.Gid) {
 				//fmt.Printf("uname: %s, gid: %s\n", c.uname, newstat.Gid)
 				//fmt.Println("Can't changegroup. Not owner or not member of new group.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil

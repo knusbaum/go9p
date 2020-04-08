@@ -52,7 +52,6 @@ type Srv interface {
 // In the case of a server listening on a network, there
 // may be many clients connected to a given server at once.
 type Conn interface {
-	Uname() string
 }
 
 func handleConnection(nc net.Conn, srv Srv) {

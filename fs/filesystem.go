@@ -276,6 +276,11 @@ func WithWalkFailHandler(f func(fs *FS, parent Dir, name string) (FSNode, error)
 	}
 }
 
+// WithAuth configures the server to require authentication. 
+// Authentication is performed using the standard plan9 or plan9port tools.
+// A factotum must be running in the same namespace as this server in order
+// to authenticate users. Please see http://man.cat-v.org/9front/4/factotum
+// for more information.
 func WithAuth() Option {
 	return func(fs *FS) {
 		fs.doAuth = true

@@ -166,7 +166,8 @@ type FS struct {
 	CreateDir  func(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (Dir, error)
 	WalkFail   func(fs *FS, parent Dir, name string) (FSNode, error)
 	RemoveFile func(fs *FS, f FSNode) error
-	uid        uint64
+	uid        uint64 // uid for generating Qids.
+	doAuth bool
 	sync.RWMutex
 }
 
@@ -272,5 +273,11 @@ func WithRemoveFile(f func(fs *FS, f FSNode) error) Option {
 func WithWalkFailHandler(f func(fs *FS, parent Dir, name string) (FSNode, error)) Option {
 	return func(fs *FS) {
 		fs.WalkFail = f
+	}
+}
+
+func WithAuth() Option {
+	return func(fs *FS) {
+		fs.doAuth = true
 	}
 }

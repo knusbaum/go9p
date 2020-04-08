@@ -2,11 +2,14 @@ package fs
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"sync"
 
 	"github.com/knusbaum/go9p"
 	"github.com/knusbaum/go9p/proto"
+
+	"github.com/Plan9-Archive/libauth"
 )
 
 type fidInfo struct {
@@ -68,14 +71,67 @@ func (_ *server) Version(gc go9p.Conn, t *proto.TRVersion) (proto.FCall, error) 
 	}
 }
 
-func (_ *server) Auth(gc go9p.Conn, t *proto.TAuth) (proto.FCall, error) {
-	return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Authentication Not Supported."}, nil
+func (s *server) Auth(gc go9p.Conn, t *proto.TAuth) (proto.FCall, error) {
+	if !s.fs.doAuth {
+		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Authentication Not Supported."}, nil
+	}
+	c := gc.(*conn)
+
+	stream := NewBlockingStream(10, true)
+	authFile := NewStreamFile(
+		s.fs.NewStat("auth", "glenda", "glenda", 0666),
+		stream,
+	)
+
+	err := authFile.Open(c.toConnFid(t.Afid), proto.Ordwr)
+	if err != nil {
+		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, err.Error()}, nil
+	}
+	info := &fidInfo{
+		n:        authFile,
+		openMode: proto.Ordwr,
+	}
+	c.fids.Store(t.Afid, info)
+
+	go func(s BiDiStream) {
+		defer s.Close()
+		ai, err := libauth.Proxy(s, "proto=p9any role=server user=%s", t.Uname)
+		if err != nil {
+			info.extra = err
+			log.Printf("Authentication Error: %s", err)
+		} else {
+			info.extra = ai
+			log.Printf("AuthInfo: [Cuid: %s, Suid: %s, Cap: %s]", ai.Cuid, ai.Suid, ai.Cap)
+		}
+
+	}(stream)
+
+	return &proto.RAuth{proto.Header{proto.Rauth, t.Tag}, authFile.Stat().Qid}, nil
 }
 
 func (s *server) Attach(gc go9p.Conn, t *proto.TAttach) (proto.FCall, error) {
 	c := gc.(*conn)
-	c.uname = t.Uname
-	//c.fids[t.Fid] = newFidInfo(s.fs.Root)
+
+	if !s.fs.doAuth {
+		c.uname = t.Uname
+		c.fids.Store(t.Fid, newFidInfo(s.fs.Root))
+		return &proto.RAttach{proto.Header{proto.Rattach, t.Tag}, s.fs.Root.Stat().Qid}, nil
+	}
+
+	i, ok := c.fids.Load(t.Afid)
+	if !ok {
+		return &proto.RError{proto.Header{t.Type, t.Tag}, "Bad Afid."}, nil
+	}
+	info := i.(*fidInfo)
+	if err, ok := info.extra.(error); ok {
+		return &proto.RError{proto.Header{t.Type, t.Tag}, err.Error()}, nil
+	}
+
+	ai := info.extra.(*libauth.AuthInfo)
+	//	if t.Uname != ai.Cuid {
+	//		return &proto.RError{proto.Header{t.Type, t.Tag}, "Bad attach uname"}, nil
+	//	}
+	c.uname = ai.Cuid
 	c.fids.Store(t.Fid, newFidInfo(s.fs.Root))
 	return &proto.RAttach{proto.Header{proto.Rattach, t.Tag}, s.fs.Root.Stat().Qid}, nil
 }

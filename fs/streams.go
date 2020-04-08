@@ -69,8 +69,10 @@ func (r *chanReader) Write(p []byte) (n int, err error) {
 }
 
 func (r *chanReader) Close() {
-	r.live = false
-	close(r.read)
+	if r.live {
+		r.live = false
+		close(r.read)
+	}
 }
 
 type Stream interface {

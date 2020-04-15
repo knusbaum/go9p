@@ -3,7 +3,6 @@ package fs
 import (
 	"io"
 	"os"
-	"reflect"
 	"sync"
 	"time"
 )
@@ -30,10 +29,11 @@ type StreamReadWriter interface {
 }
 
 type chanReader struct {
-	read   chan []byte
-	write  chan []byte
-	unread []byte
-	live   bool
+	read         chan []byte
+	write        chan []byte
+	writerClosed chan struct{}
+	unread       []byte
+	live         bool
 }
 
 func (r *chanReader) Read(p []byte) (n int, err error) {
@@ -71,8 +71,17 @@ func (r *chanReader) Read(p []byte) (n int, err error) {
 func (r *chanReader) Write(p []byte) (n int, err error) {
 	bs := make([]byte, len(p))
 	copy(bs, p)
-	r.write <- bs
-	return len(p), nil
+	select {
+	case <-r.writerClosed:
+		return 0, io.EOF
+	default:
+		select {
+		case r.write <- bs:
+			return len(p), nil
+		case <-r.writerClosed:
+			return 0, io.EOF
+		}
+	}
 }
 
 func (r *chanReader) Close() {
@@ -96,18 +105,12 @@ type BiDiStream interface {
 }
 
 type baseStream struct {
-	readers []*chanReader
-	read    []byte
-	bufflen int
-	closed  bool
-	wake    chan struct{} // Used to wake up a Read if readers change.
+	readers  []*chanReader
+	read     []byte
+	bufflen  int
+	incoming chan []byte
+	close    chan struct{}
 	sync.Mutex
-}
-
-func (s *baseStream) wakeup() {
-	oldwake := s.wake
-	s.wake = make(chan struct{}, 0)
-	close(oldwake)
 }
 
 func (s *baseStream) AddReader() StreamReader {
@@ -118,16 +121,16 @@ func (s *baseStream) AddReadWriter() StreamReadWriter {
 	s.Lock()
 	defer s.Unlock()
 	reader := &chanReader{
-		read:  make(chan []byte, s.bufflen),
-		write: make(chan []byte, 0),
-		live:  true,
+		read:         make(chan []byte, s.bufflen),
+		write:        s.incoming,
+		writerClosed: s.close,
+		live:         true,
 	}
-	if s.closed {
+	if s.closed() {
 		reader.Close()
 	} else {
 		s.readers = append(s.readers, reader)
 	}
-	s.wakeup()
 	return reader
 }
 
@@ -145,50 +148,46 @@ func (s *baseStream) RemoveReader(r StreamReader) {
 	}
 	s.readers = s.readers[:k]
 	r.Close()
-	s.wakeup()
-}
-
-func (s *baseStream) makeCases() []reflect.SelectCase {
-	s.Lock()
-	defer s.Unlock()
-	cases := make([]reflect.SelectCase, len(s.readers)+1)
-	cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(s.wake)}
-	for i, rdr := range s.readers {
-		cases[i+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(rdr.write)}
-	}
-	if s.closed {
-		cases = append(cases, reflect.SelectCase{Dir: reflect.SelectDefault})
-	}
-
-	return cases
 }
 
 func (s *baseStream) Read(p []byte) (n int, err error) {
 	if s.read == nil || len(s.read) == 0 {
 		for {
-			cases := s.makeCases()
-			i, v, ok := reflect.Select(cases)
-			if i == 0 {
-				// Index zero is the s.wake channel. It means we need to loop since
-				// some baseStream state has changed.
-				continue
-			}
-			if !ok {
-				// Check if we're closed and hit default.
-				if cases[i].Dir == reflect.SelectDefault {
+			var (
+				in []byte
+				ok bool
+			)
+			select {
+			case in, ok = <-s.incoming:
+			// Hacky way to ensure s.incoming gets preferentially selected.
+			default:
+				select {
+				case in, ok = <-s.incoming:
+				case <-s.close:
 					return 0, io.EOF
 				}
-				// This reader has closed the write channel.
-				cases = append(cases[:i], cases[i+1:]...)
-				continue
 			}
-			s.read = v.Interface().([]byte)
-			break
+			if !ok {
+				return 0, io.EOF
+			}
+			s.read = in
+			if len(s.read) > 0 {
+				break
+			}
 		}
 	}
 	n = copy(p, s.read)
 	s.read = s.read[n:]
 	return
+}
+
+func (s *baseStream) closed() bool {
+	select {
+	case <-s.close:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *baseStream) Close() error {
@@ -198,8 +197,7 @@ func (s *baseStream) Close() error {
 		reader.Close()
 	}
 	s.readers = nil
-	s.closed = true
-	s.wakeup()
+	close(s.close)
 	return nil
 }
 
@@ -210,8 +208,9 @@ type AsyncStream struct {
 func NewAsyncStream(buffer int) *AsyncStream {
 	return &AsyncStream{
 		baseStream{
-			bufflen: buffer,
-			wake:    make(chan struct{}, 0),
+			bufflen:  buffer,
+			incoming: make(chan []byte, 10),
+			close:    make(chan struct{}, 0),
 		},
 	}
 }
@@ -248,8 +247,9 @@ type BlockingStream struct {
 func NewBlockingStream(buffer int) *BlockingStream {
 	return &BlockingStream{
 		baseStream: baseStream{
-			bufflen: buffer,
-			wake:    make(chan struct{}, 0),
+			bufflen:  buffer,
+			incoming: make(chan []byte, 10),
+			close:    make(chan struct{}, 0),
 		},
 	}
 }
@@ -291,8 +291,9 @@ type SkippingStream struct {
 func NewSkippingStream(buffer int) *SkippingStream {
 	return &SkippingStream{
 		baseStream{
-			bufflen: buffer,
-			wake:    make(chan struct{}, 0),
+			bufflen:  buffer,
+			incoming: make(chan []byte, 10),
+			close:    make(chan struct{}, 0),
 		},
 	}
 }

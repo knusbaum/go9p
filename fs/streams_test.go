@@ -222,9 +222,7 @@ func TestBiDiStream(t *testing.T) {
 			assert := assert.New(t)
 			s := sf()
 			text := "The quick brown fox jumped over the lazy dog."
-			go s.AddReadWriter().Write([]byte(text))
-			//s.Read(nil) // This is a hack that pulls the text into the reading buffer for the stream before we close the stream.
-			s.Read(nil)
+			s.AddReadWriter().Write([]byte(text))
 			s.Close()
 
 			var output []byte
@@ -279,12 +277,10 @@ func TestBiDiStream(t *testing.T) {
 			r2 := s.AddReadWriter()
 			r3 := s.AddReadWriter()
 			r4 := s.AddReadWriter()
-			go func() {
-				r1.Write([]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-				r2.Write([]byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
-				r3.Write([]byte("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"))
-				r4.Write([]byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"))
-			}()
+			r1.Write([]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+			r2.Write([]byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
+			r3.Write([]byte("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"))
+			r4.Write([]byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"))
 
 			counts := make(map[byte]int)
 			bs := make([]byte, 1)
@@ -320,12 +316,10 @@ func TestBiDiStream(t *testing.T) {
 			r2 := s.AddReadWriter()
 			r3 := s.AddReadWriter()
 			r4 := s.AddReadWriter()
-			go func() {
-				r1.Write([]byte("a"))
-				r2.Write([]byte("ab"))
-				r3.Write([]byte("abc"))
-				r4.Write([]byte("abcd"))
-			}()
+			r1.Write([]byte("a"))
+			r2.Write([]byte("ab"))
+			r3.Write([]byte("abc"))
+			r4.Write([]byte("abcd"))
 
 			// Writes may show up in any order, but they should come separately.
 			check := func(bs []byte) {

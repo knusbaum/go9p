@@ -81,7 +81,7 @@ func (s *server) Auth(gc go9p.Conn, t *proto.TAuth) (proto.FCall, error) {
 	}
 	c := gc.(*conn)
 
-	stream := NewBlockingStream(10, true)
+	stream := NewBlockingStream(10)
 	authFile := NewStreamFile(
 		s.fs.NewStat("auth", "glenda", "glenda", 0666),
 		stream,
@@ -105,7 +105,7 @@ func (s *server) Auth(gc go9p.Conn, t *proto.TAuth) (proto.FCall, error) {
 			log.Printf("Authentication Error: %s", err)
 		} else {
 			info.extra = ai
-			log.Printf("AuthInfo: [Cuid: %s, Suid: %s, Cap: %s]", ai.Cuid, ai.Suid, ai.Cap)
+			log.Printf("AuthInfo: [Cuid: %s, Suid: %s, Cap: %s]", ai.Cuid, ai.Suid, ai.Cap)
 		}
 
 	}(stream)

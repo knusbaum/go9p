@@ -12,6 +12,17 @@ import (
 	"github.com/knusbaum/go9p/proto"
 )
 
+func resetTimer(t *time.Timer, d time.Duration) {
+	if !t.Stop() {
+		// Need to do this for some reason.
+		select {
+		case <-t.C:
+		default:
+		}
+	}
+	t.Reset(d)
+}
+
 type StreamReader interface {
 	Read(p []byte) (n int, err error)
 	Close()
@@ -45,7 +56,7 @@ func (r *chanReader) Read(p []byte) (n int, err error) {
 			} else {
 				bs, ok := <-r.read
 				if !ok {
-					return 0, fmt.Errorf("End Of File.") // TODO: replace with real io.EOF
+					return 0, io.EOF
 				}
 				r.unread = bs
 			}
@@ -98,8 +109,9 @@ type baseStream struct {
 }
 
 func (s *baseStream) wakeup() {
-	close(s.wake)
+	oldwake := s.wake
 	s.wake = make(chan struct{}, 0)
+	close(oldwake)
 }
 
 func (s *baseStream) AddReader() StreamReader {
@@ -111,7 +123,7 @@ func (s *baseStream) AddReadWriter() StreamReadWriter {
 	defer s.Unlock()
 	reader := &chanReader{
 		read:  make(chan []byte, s.bufflen),
-		write: make(chan []byte, 1),
+		write: make(chan []byte, 0),
 		live:  true,
 	}
 	if s.closed {
@@ -126,7 +138,6 @@ func (s *baseStream) AddReadWriter() StreamReadWriter {
 func (s *baseStream) RemoveReader(r StreamReader) {
 	s.Lock()
 	defer s.Unlock()
-	//fmt.Printf("RemoveReader(%p)\n", r)
 	k := 0
 	for i, reader := range s.readers {
 		if r != reader {
@@ -179,7 +190,6 @@ func (s *baseStream) Read(p []byte) (n int, err error) {
 			break
 		}
 	}
-
 	n = copy(p, s.read)
 	s.read = s.read[n:]
 	return
@@ -216,10 +226,7 @@ func (s *AsyncStream) Write(p []byte) (n int, err error) {
 	k := 0
 	t := time.NewTimer(10 * time.Millisecond)
 	for i, reader := range s.readers {
-		if !t.Stop() {
-			<-t.C
-		}
-		t.Reset(50 * time.Millisecond)
+		resetTimer(t, 50 * time.Millisecond)
 		cp := make([]byte, len(p))
 		copy(cp, p)
 		select {
@@ -239,17 +246,15 @@ func (s *AsyncStream) Write(p []byte) (n int, err error) {
 
 type BlockingStream struct {
 	baseStream
-	waitForReaders bool
-	writeLock      sync.Mutex
+	writeLock sync.Mutex
 }
 
-func NewBlockingStream(buffer int, waitForReaders bool) *BlockingStream {
+func NewBlockingStream(buffer int) *BlockingStream {
 	return &BlockingStream{
 		baseStream: baseStream{
 			bufflen: buffer,
 			wake:    make(chan struct{}, 0),
 		},
-		waitForReaders: waitForReaders,
 	}
 }
 
@@ -258,9 +263,7 @@ func (s *BlockingStream) Write(p []byte) (n int, err error) {
 	defer s.writeLock.Unlock()
 	laggers := s.tryWrite(s.readers, p)
 	for len(laggers) > 0 {
-		//fmt.Printf("LAGGERS: %d\n", len(laggers))
 		time.Sleep(10 * time.Millisecond)
-		//fmt.Printf("LAGGERS: %d\n", len(laggers))
 		laggers = s.tryWrite(laggers, p)
 	}
 	return len(p), nil
@@ -303,10 +306,7 @@ func (s *SkippingStream) Write(p []byte) (n int, err error) {
 	defer s.Unlock()
 	t := time.NewTimer(50 * time.Millisecond)
 	for _, reader := range s.readers {
-		if !t.Stop() {
-			<-t.C
-		}
-		t.Reset(50 * time.Millisecond)
+		resetTimer(t, 50 * time.Millisecond)
 		cp := make([]byte, len(p))
 		copy(cp, p)
 		select {
@@ -438,15 +438,7 @@ func (r *fileReader) Read(p []byte) (n int, err error) {
 		if err == nil || err != io.EOF {
 			return
 		}
-
-		if !r.t.Stop() {
-			// Need to do this for some reason.
-			select {
-			case <-r.t.C:
-			default:
-			}
-		}
-		r.t.Reset(500 * time.Millisecond)
+		resetTimer(r.t, 500 * time.Millisecond)
 		select {
 		case _, ok := <-r.signal:
 			if !ok {

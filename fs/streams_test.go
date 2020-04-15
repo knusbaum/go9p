@@ -16,14 +16,14 @@ var testFile string = "/tmp/go9p.test.tmp"
 var _ File = &StreamFile{}
 
 var _ BiDiStream = NewAsyncStream(100)
-var _ BiDiStream = NewBlockingStream(100, false)
+var _ BiDiStream = NewBlockingStream(100)
 var _ BiDiStream = NewSkippingStream(50)
 var _ Stream = &SavedStream{}
 
 func TestStream(t *testing.T) {
 	for name, sf := range map[string]func() Stream{
 		"async":    func() Stream { return NewAsyncStream(50) },
-		"blocking": func() Stream { return NewBlockingStream(50, false) },
+		"blocking": func() Stream { return NewBlockingStream(50) },
 		"skipping": func() Stream { return NewSkippingStream(50) },
 		"saved": func() Stream {
 			os.Remove(testFile)
@@ -132,7 +132,7 @@ func TestAsyncStream(t *testing.T) {
 func TestBlockingStream(t *testing.T) {
 	t.Run("StoppedReader", func(t *testing.T) {
 		assert := assert.New(t)
-		s := NewBlockingStream(1, false)
+		s := NewBlockingStream(1)
 		r := s.AddReader()
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -215,15 +215,16 @@ func TestSavedStream(t *testing.T) {
 func TestBiDiStream(t *testing.T) {
 	for name, sf := range map[string]func() BiDiStream{
 		"async":    func() BiDiStream { return NewAsyncStream(50) },
-		"blocking": func() BiDiStream { return NewBlockingStream(50, false) },
+		"blocking": func() BiDiStream { return NewBlockingStream(50) },
 		"skipping": func() BiDiStream { return NewSkippingStream(50) },
 	} {
 		t.Run(name+"/BasicRead", func(t *testing.T) {
 			assert := assert.New(t)
 			s := sf()
 			text := "The quick brown fox jumped over the lazy dog."
-			s.AddReadWriter().Write([]byte(text))
-			s.Read(nil) // This is a hack that pulls the text into the reading buffer for the stream before we close the stream.
+			go s.AddReadWriter().Write([]byte(text))
+			//s.Read(nil) // This is a hack that pulls the text into the reading buffer for the stream before we close the stream.
+			s.Read(nil)
 			s.Close()
 
 			var output []byte
@@ -278,10 +279,12 @@ func TestBiDiStream(t *testing.T) {
 			r2 := s.AddReadWriter()
 			r3 := s.AddReadWriter()
 			r4 := s.AddReadWriter()
-			r1.Write([]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-			r2.Write([]byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
-			r3.Write([]byte("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"))
-			r4.Write([]byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"))
+			go func() {
+				r1.Write([]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+				r2.Write([]byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
+				r3.Write([]byte("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"))
+				r4.Write([]byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"))
+			}()
 
 			counts := make(map[byte]int)
 			bs := make([]byte, 1)
@@ -317,10 +320,12 @@ func TestBiDiStream(t *testing.T) {
 			r2 := s.AddReadWriter()
 			r3 := s.AddReadWriter()
 			r4 := s.AddReadWriter()
-			r1.Write([]byte("a"))
-			r2.Write([]byte("ab"))
-			r3.Write([]byte("abc"))
-			r4.Write([]byte("abcd"))
+			go func() {
+				r1.Write([]byte("a"))
+				r2.Write([]byte("ab"))
+				r3.Write([]byte("abc"))
+				r4.Write([]byte("abcd"))
+			}()
 
 			// Writes may show up in any order, but they should come separately.
 			check := func(bs []byte) {

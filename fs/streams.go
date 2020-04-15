@@ -1,15 +1,11 @@
 package fs
 
 import (
-	"errors"
-	"fmt"
 	"io"
 	"os"
 	"reflect"
 	"sync"
 	"time"
-
-	"github.com/knusbaum/go9p/proto"
 )
 
 func resetTimer(t *time.Timer, d time.Duration) {
@@ -226,7 +222,7 @@ func (s *AsyncStream) Write(p []byte) (n int, err error) {
 	k := 0
 	t := time.NewTimer(10 * time.Millisecond)
 	for i, reader := range s.readers {
-		resetTimer(t, 50 * time.Millisecond)
+		resetTimer(t, 50*time.Millisecond)
 		cp := make([]byte, len(p))
 		copy(cp, p)
 		select {
@@ -306,7 +302,7 @@ func (s *SkippingStream) Write(p []byte) (n int, err error) {
 	defer s.Unlock()
 	t := time.NewTimer(50 * time.Millisecond)
 	for _, reader := range s.readers {
-		resetTimer(t, 50 * time.Millisecond)
+		resetTimer(t, 50*time.Millisecond)
 		cp := make([]byte, len(p))
 		copy(cp, p)
 		select {
@@ -316,109 +312,6 @@ func (s *SkippingStream) Write(p []byte) (n int, err error) {
 		}
 	}
 	return len(p), nil
-}
-
-type StreamFile struct {
-	*BaseFile
-	s         Stream
-	fidReader map[uint64]StreamReader
-}
-
-type BiDiStreamFile struct {
-	*BaseFile
-	s         BiDiStream
-	fidReader map[uint64]StreamReadWriter
-}
-
-func NewStreamFile(stat *proto.Stat, s Stream) File {
-	if bidi, ok := s.(BiDiStream); ok {
-		return &BiDiStreamFile{
-			BaseFile:  NewBaseFile(stat),
-			s:         bidi,
-			fidReader: make(map[uint64]StreamReadWriter),
-		}
-	}
-	return &StreamFile{
-		BaseFile:  NewBaseFile(stat),
-		s:         s,
-		fidReader: make(map[uint64]StreamReader),
-	}
-}
-
-func (f *StreamFile) Open(fid uint64, omode proto.Mode) error {
-	if omode == proto.Owrite ||
-		omode == proto.Ordwr {
-		return errors.New("Cannot open this stream for writing.")
-	}
-	f.fidReader[fid] = f.s.AddReader()
-	return nil
-}
-
-func (f *StreamFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
-	bs := make([]byte, count)
-	r, ok := f.fidReader[fid]
-	if !ok {
-		// This really shouldn't happen.
-		return nil, fmt.Errorf("Failed to read stream. Not opened for read.")
-	}
-	n, err := r.Read(bs)
-	if err != nil {
-		return nil, err
-	}
-	bs = bs[:n]
-	return bs, nil
-}
-
-func (f *StreamFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
-	return 0, errors.New("Cannot write to this stream.")
-}
-
-func (f *StreamFile) Close(fid uint64) error {
-	r, ok := f.fidReader[fid]
-	if ok {
-		f.s.RemoveReader(r)
-		delete(f.fidReader, fid)
-	}
-	return nil
-}
-
-func (f *BiDiStreamFile) Open(fid uint64, omode proto.Mode) error {
-	f.fidReader[fid] = f.s.AddReadWriter()
-	return nil
-}
-
-func (f *BiDiStreamFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
-	bs := make([]byte, count)
-	r, ok := f.fidReader[fid]
-	if !ok {
-		// This really shouldn't happen.
-		return nil, fmt.Errorf("Failed to read stream. Server error.")
-	}
-	n, err := r.Read(bs)
-	if err != nil {
-		return nil, err
-	}
-	bs = bs[:n]
-	return bs, nil
-}
-
-func (f *BiDiStreamFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
-	r, ok := f.fidReader[fid]
-	if !ok {
-		// This really shouldn't happen.
-		return 0, fmt.Errorf("Failed to write stream. Server error.")
-	}
-	n, err := r.Write(data)
-	return uint32(n), err
-}
-
-func (f *BiDiStreamFile) Close(fid uint64) error {
-	r, ok := f.fidReader[fid]
-	if ok {
-		f.s.RemoveReader(r)
-		delete(f.fidReader, fid)
-	}
-	return nil
 }
 
 type fileReader struct {
@@ -438,7 +331,7 @@ func (r *fileReader) Read(p []byte) (n int, err error) {
 		if err == nil || err != io.EOF {
 			return
 		}
-		resetTimer(r.t, 500 * time.Millisecond)
+		resetTimer(r.t, 500*time.Millisecond)
 		select {
 		case _, ok := <-r.signal:
 			if !ok {

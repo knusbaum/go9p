@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 	"time"
+	"log"
 )
 
 func resetTimer(t *time.Timer, d time.Duration) {
@@ -96,6 +97,7 @@ type Stream interface {
 	RemoveReader(r StreamReader)
 	Write(p []byte) (n int, err error)
 	Close() error
+	length() uint64 // length of the stream (or 0 if unknown)
 }
 
 type BiDiStream interface {
@@ -111,6 +113,10 @@ type baseStream struct {
 	incoming chan []byte
 	close    chan struct{}
 	sync.Mutex
+}
+
+func (s *baseStream) length() uint64 {
+	return 0
 }
 
 func (s *baseStream) AddReader() StreamReader {
@@ -370,6 +376,15 @@ func NewSavedStream(path string) (*SavedStream, error) {
 		path:   path,
 		closed: false,
 	}, nil
+}
+
+func (s *SavedStream) length() uint64 {
+	stat, err := s.f.Stat()
+	if err != nil {
+		log.Printf("fs streams: %s", err)
+		return 0
+	}
+	return uint64(stat.Size())
 }
 
 func (s *SavedStream) AddReader() StreamReader {

@@ -34,6 +34,12 @@ func NewStreamFile(stat *proto.Stat, s Stream) File {
 	}
 }
 
+func (f *StreamFile) Stat() proto.Stat {
+	stat := f.fStat
+	stat.Length = f.s.length()
+	return stat
+}
+
 func (f *StreamFile) Open(fid uint64, omode proto.Mode) error {
 	if omode == proto.Owrite ||
 		omode == proto.Ordwr {
@@ -69,6 +75,12 @@ func (f *StreamFile) Close(fid uint64) error {
 		delete(f.fidReader, fid)
 	}
 	return nil
+}
+
+func (f *BiDiStreamFile) Stat() proto.Stat {
+	stat := f.fStat
+	stat.Length = f.s.length()
+	return stat
 }
 
 func (f *BiDiStreamFile) Open(fid uint64, omode proto.Mode) error {

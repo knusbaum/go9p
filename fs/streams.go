@@ -53,7 +53,10 @@ func (r *chanReader) Read(p []byte) (n int, err error) {
 			} else {
 				bs, ok := <-r.read
 				if !ok {
-					return 0, io.EOF
+					// Return 0, nil on EOF.
+					// Returning io.EOF will cause RError response,
+					// which is incorrect. 9p EOF is be 0-length RRead.
+					return 0, nil
 				}
 				r.unread = bs
 			}
@@ -199,6 +202,9 @@ func (s *baseStream) closed() bool {
 func (s *baseStream) Close() error {
 	s.Lock()
 	defer s.Unlock()
+	if s.closed() {
+		return nil
+	}
 	for _, reader := range s.readers {
 		reader.Close()
 	}

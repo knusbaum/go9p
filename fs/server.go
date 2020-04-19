@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math"
@@ -39,6 +40,12 @@ func (i *fidInfo) deriveInfo(n FSNode) *fidInfo {
 type conn struct {
 	connID uint32
 	fids   sync.Map
+	tags   sync.Map
+}
+
+type ctxCancel struct {
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (c *conn) toConnFid(fid uint32) uint64 {
@@ -46,6 +53,28 @@ func (c *conn) toConnFid(fid uint32) uint64 {
 	bcid = bcid << 32
 	bcid = bcid | uint64(fid)
 	return bcid
+}
+
+func (c *conn) TagContext(tag uint16) context.Context {
+	v, ok := c.tags.Load(tag)
+	if !ok {
+		ctx, cancel := context.WithCancel(context.Background())
+		ctxc := &ctxCancel{ctx, cancel}
+		c.tags.Store(tag, ctxc)
+		return ctx
+	}
+	ctxc := v.(*ctxCancel)
+	return ctxc.ctx
+}
+
+func (c *conn) DropContext(tag uint16) {
+	v, ok := c.tags.Load(tag)
+	if !ok {
+		return
+	}
+	ctxc := v.(*ctxCancel)
+	c.tags.Delete(tag)
+	ctxc.cancel()
 }
 
 type server struct {
@@ -140,10 +169,6 @@ func (s *server) Attach(gc go9p.Conn, t *proto.TAttach) (proto.FCall, error) {
 	return &proto.RAttach{proto.Header{proto.Rattach, t.Tag}, s.fs.Root.Stat().Qid}, nil
 }
 
-func (_ *server) Flush(gc go9p.Conn, t *proto.TFlush) (proto.FCall, error) {
-	return &proto.RFlush{proto.Header{proto.Rflush, t.Tag}}, nil
-}
-
 func (s *server) Walk(gc go9p.Conn, t *proto.TWalk) (proto.FCall, error) {
 	c := gc.(*conn)
 	i, ok := c.fids.Load(t.Fid)
@@ -232,7 +257,6 @@ func (_ *server) Open(gc go9p.Conn, t *proto.TOpen) (proto.FCall, error) {
 
 func (s *server) Create(gc go9p.Conn, t *proto.TCreate) (proto.FCall, error) {
 	c := gc.(*conn)
-	//info, ok := c.fids[t.Fid]
 	i, ok := c.fids.Load(t.Fid)
 	if !ok {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Bad Fid."}, nil
@@ -284,7 +308,6 @@ func (_ *server) Read(gc go9p.Conn, t *proto.TRead) (proto.FCall, error) {
 	if t.Count > proto.IOUnit {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Read size too large."}, nil
 	}
-	//info, ok := c.fids[t.Fid]
 	i, ok := c.fids.Load(t.Fid)
 	if !ok {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Bad Fid."}, nil
@@ -348,7 +371,6 @@ func readDir(t *proto.TRead, info *fidInfo) proto.FCall {
 
 func (_ *server) Write(gc go9p.Conn, t *proto.TWrite) (proto.FCall, error) {
 	c := gc.(*conn)
-	//info, ok := c.fids[t.Fid]
 	i, ok := c.fids.Load(t.Fid)
 	if !ok {
 		// TODO: Handle Auth
@@ -382,8 +404,6 @@ func (_ *server) Write(gc go9p.Conn, t *proto.TWrite) (proto.FCall, error) {
 
 func (_ *server) Clunk(gc go9p.Conn, t *proto.TClunk) (proto.FCall, error) {
 	c := gc.(*conn)
-	//info, ok := c.fids[t.Fid]
-	//delete(c.fids, t.Fid)
 	i, ok := c.fids.Load(t.Fid)
 	c.fids.Delete(t.Fid)
 	if !ok {

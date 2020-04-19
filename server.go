@@ -12,6 +12,7 @@ package go9p
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -36,7 +37,6 @@ type Srv interface {
 	Version(Conn, *proto.TRVersion) (proto.FCall, error)
 	Auth(Conn, *proto.TAuth) (proto.FCall, error)
 	Attach(Conn, *proto.TAttach) (proto.FCall, error)
-	Flush(Conn, *proto.TFlush) (proto.FCall, error)
 	Walk(Conn, *proto.TWalk) (proto.FCall, error)
 	Open(Conn, *proto.TOpen) (proto.FCall, error)
 	Create(Conn, *proto.TCreate) (proto.FCall, error)
@@ -52,6 +52,8 @@ type Srv interface {
 // In the case of a server listening on a network, there
 // may be many clients connected to a given server at once.
 type Conn interface {
+	TagContext(uint16) context.Context
+	DropContext(uint16)
 }
 
 func handleConnection(nc net.Conn, srv Srv) {
@@ -78,6 +80,11 @@ func handleIO(r io.Reader, w io.Writer, srv Srv) error {
 		resp, err := handleCall(call, srv, conn)
 		if err != nil {
 			return err
+		}
+		if resp == nil {
+			// This case happens when an active tag is
+			// flushed.
+			continue
 		}
 		//log.Printf("<=out= %v\n", resp)
 		_, err = w.Write(resp.Compose())
@@ -116,12 +123,16 @@ func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
 		go func() {
 			defer workerWG.Done()
 			for call := range incoming {
-				//resp, err := c.handleCall(call)
 				resp, err := handleCall(call, srv, conn)
 				if err != nil {
 					log.Printf("Protocol error: %v\n", err)
 					//return err
 					return
+				}
+				if resp == nil {
+					// This case happens when an active tag is
+					// flushed.
+					continue
 				}
 				outgoing <- resp
 			}
@@ -148,36 +159,49 @@ func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
 }
 
 func handleCall(call proto.FCall, srv Srv, conn Conn) (proto.FCall, error) {
+	ctx := conn.TagContext(call.GetTag())
+	var (
+		ret proto.FCall
+		err error
+	)
 	switch call.(type) {
 	case *proto.TRVersion:
-		return srv.Version(conn, call.(*proto.TRVersion))
+		ret, err = srv.Version(conn, call.(*proto.TRVersion))
 	case *proto.TAuth:
-		return srv.Auth(conn, call.(*proto.TAuth))
+		ret, err = srv.Auth(conn, call.(*proto.TAuth))
 	case *proto.TAttach:
-		return srv.Attach(conn, call.(*proto.TAttach))
+		ret, err = srv.Attach(conn, call.(*proto.TAttach))
 	case *proto.TFlush:
-		return srv.Flush(conn, call.(*proto.TFlush))
+		flush := call.(*proto.TFlush)
+		//conn.DropContext(flush.Oldtag)
+		ret, err = &proto.RFlush{proto.Header{proto.Rflush, flush.Tag}}, nil
 	case *proto.TWalk:
-		return srv.Walk(conn, call.(*proto.TWalk))
+		ret, err = srv.Walk(conn, call.(*proto.TWalk))
 	case *proto.TOpen:
-		return srv.Open(conn, call.(*proto.TOpen))
+		ret, err = srv.Open(conn, call.(*proto.TOpen))
 	case *proto.TCreate:
-		return srv.Create(conn, call.(*proto.TCreate))
+		ret, err = srv.Create(conn, call.(*proto.TCreate))
 	case *proto.TRead:
-		return srv.Read(conn, call.(*proto.TRead))
+		ret, err = srv.Read(conn, call.(*proto.TRead))
 	case *proto.TWrite:
-		return srv.Write(conn, call.(*proto.TWrite))
+		ret, err = srv.Write(conn, call.(*proto.TWrite))
 	case *proto.TClunk:
-		return srv.Clunk(conn, call.(*proto.TClunk))
+		ret, err = srv.Clunk(conn, call.(*proto.TClunk))
 	case *proto.TRemove:
-		return srv.Remove(conn, call.(*proto.TRemove))
+		ret, err = srv.Remove(conn, call.(*proto.TRemove))
 	case *proto.TStat:
-		return srv.Stat(conn, call.(*proto.TStat))
+		ret, err = srv.Stat(conn, call.(*proto.TStat))
 	case *proto.TWstat:
-		return srv.Wstat(conn, call.(*proto.TWstat))
+		ret, err = srv.Wstat(conn, call.(*proto.TWstat))
 	default:
 		return nil, fmt.Errorf("Invalid call: %s", reflect.TypeOf(call))
 	}
+
+	if ctx.Err() != nil {
+		return nil, nil
+	}
+	conn.DropContext(call.GetTag())
+	return ret, err
 }
 
 // ServeReadWriter accepts an io.Reader an io.Writer, and an Srv.

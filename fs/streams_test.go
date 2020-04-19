@@ -85,20 +85,23 @@ func TestStream(t *testing.T) {
 
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				bs := make([]byte, 2000)
 				curr := bs
 				read := 0
 				for {
 					n, err := r.Read(curr)
-					if err != nil {
-						break
+					if !assert.NoError(err) {
+						return
 					}
 					curr = curr[n:]
 					read += n
+					if read == 1000 {
+						break
+					}
 					time.Sleep(10 * time.Millisecond)
 				}
 				assert.Equal(1000, read)
-				wg.Done()
 			}()
 			wg.Wait()
 		})
@@ -125,7 +128,8 @@ func TestAsyncStream(t *testing.T) {
 		assert.Equal("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", string(readbs[:n]))
 
 		n, err = r.Read(readbs)
-		assert.Error(err)
+		assert.NoError(err)
+		assert.Equal(0, n)
 	})
 }
 
@@ -248,19 +252,15 @@ func TestBiDiStream(t *testing.T) {
 			wait := make(chan struct{}, 0)
 			go func() {
 				bs := make([]byte, 1024)
-				//fmt.Println("READING")
 				wait <- struct{}{}
 				n, err := s.Read(bs)
-				//fmt.Printf("READ: %s\n", string(bs[:n]))
 				assert.NoError(err)
 				read <- bs[:n]
 			}()
 
 			<-wait
 			text := "The quick brown fox jumped over the lazy dog."
-			//fmt.Println("ADDING WRITER AND WRITING!")
 			s.AddReadWriter().Write([]byte(text))
-			//fmt.Println("WROTE.")
 			select {
 			case t := <-read:
 				assert.Equal(text, string(t))

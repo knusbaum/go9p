@@ -8,13 +8,34 @@ blocks:
   - name: Test
     task:
       jobs:
-        - name: go test
+        - name: Go 1.11
           commands:
             - sem-version go 1.11
-            - "export GO111MODULE=on"
-            - "export GOPATH=~/go"
-            - "export PATH=/home/semaphore/go/bin:$PATH"
+            - export GO111MODULE=on
+            - export GOPATH=~/go
+            - 'export PATH=/home/semaphore/go/bin:$PATH'
             - checkout
             - go get ./...
             - go test ./...
             - go build -v .
+        - name: Go 1.12
+          commands:
+            - sem-version go 1.12
+            - export GO111MODULE=on
+            - export GOPATH=~/go
+            - 'export PATH=/home/semaphore/go/bin:$PATH'
+            - checkout
+            - go get ./...
+            - go test ./...
+            - go build -v .
+        - name: Go 1.13
+          commands:
+            - sem-version go 1.13
+            - export GO111MODULE=on
+            - export GOPATH=~/go
+            - 'export PATH=/home/semaphore/go/bin:$PATH'
+            - checkout
+            - go get ./...
+            - go test ./...
+            - go build -v .
+    dependencies: []

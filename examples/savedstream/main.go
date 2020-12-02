@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	sfs := fs.NewFS("glenda", "glenda", 0777)
+	sfs, root := fs.NewFS("glenda", "glenda", 0777)
 
 	stream, err := fs.NewSavedStream("/tmp/savedStream")
 	if err != nil {
@@ -27,7 +27,7 @@ func main() {
 		}
 	}()
 
-	sfs.Root.AddChild(fs.NewStreamFile(
+	root.AddChild(fs.NewStreamFile(
 		sfs.NewStat("savedStream", "glenda", "glenda", 0666),
 		stream,
 	))

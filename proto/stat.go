@@ -59,6 +59,20 @@ func (stat *Stat) String() string {
 		stat.Gid, stat.Muid)
 }
 
+func ParseStats(buff []byte) ([]Stat, error) {
+	stats := make([]Stat, 0)
+	var err error
+	for len(buff) > 0 {
+		s := Stat{}
+		buff, err = s.parse(buff)
+		if err != nil {
+			return nil, err
+		}
+		stats = append(stats, s)
+	}
+	return stats, nil
+}
+
 func (stat *Stat) parse(buff []byte) ([]byte, error) {
 	_, buff = fromLittleE16(buff) // throw away length
 	stat.Type, buff = fromLittleE16(buff)

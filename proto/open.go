@@ -16,7 +16,7 @@ const (
 )
 
 const (
-	IOUnit = 8168
+	IOUnit = 16384
 )
 
 type TOpen struct {
@@ -32,6 +32,9 @@ func (open *TOpen) String() string {
 
 func (open *TOpen) parse(buff []byte) ([]byte, error) {
 	open.Fid, buff = fromLittleE32(buff)
+	if len(buff) < 1 {
+		return buff, fmt.Errorf("short fcall")
+	}
 	open.Mode = Mode(buff[0])
 	return buff[1:], nil
 }

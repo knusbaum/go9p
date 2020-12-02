@@ -18,10 +18,14 @@ package fs
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Plan9-Archive/libauth"
+	"github.com/emersion/go-sasl"
 	"github.com/knusbaum/go9p/proto"
 )
 
@@ -63,6 +67,11 @@ type File interface {
 type Dir interface {
 	FSNode
 	Children() map[string]FSNode
+}
+
+// ModDir is a directory that allows the adding and removal of child nodes.
+type ModDir interface {
+	Dir
 	AddChild(n FSNode) error
 	DeleteChild(name string) error
 }
@@ -70,16 +79,18 @@ type Dir interface {
 // FullPath is a helper function that assembles the names
 // of all the parent nodes of f into a full path string.
 func FullPath(f FSNode) string {
+	//fmt.Printf("Getting Full Path for %s\n", f.Stat().Name)
 	if f == nil {
 		return ""
 	}
 	parent := f.Parent()
 	if parent == nil {
-		fmt.Printf("ROOT: %s\n", f.Stat().Name)
+		//fmt.Printf("ROOT: %s\n", f.Stat().Name)
 		return f.Stat().Name
 	}
+	//fmt.Printf("Getting Full Path for Parent: %s\n", parent.Stat().Name)
 	fp := FullPath(parent)
-	fmt.Printf("Not root: %s / %s\n", fp, f.Stat().Name)
+	//fmt.Printf("Not root: %s / %s\n", fp, f.Stat().Name)
 	return strings.Replace(fp+"/"+f.Stat().Name, "//", "/", -1)
 }
 
@@ -167,20 +178,21 @@ type FS struct {
 	WalkFail   func(fs *FS, parent Dir, name string) (FSNode, error)
 	RemoveFile func(fs *FS, f FSNode) error
 	uid        uint64 // uid for generating Qids.
-	doAuth bool
+	// doAuth bool
+	authFunc func(s io.ReadWriter) (string, error)
 	sync.RWMutex
 }
 
 // NewFS constructs and returns an *FS. Options may be passed to do things
 // like setting the various hook functions.
-func NewFS(rootUser, rootGroup string, rootPerms uint32, opts ...Option) *FS {
+func NewFS(rootUser, rootGroup string, rootPerms uint32, opts ...Option) (*FS, *StaticDir) {
 	var fs FS
 	d := NewStaticDir(fs.NewStat("/", rootUser, rootGroup, rootPerms|proto.DMDIR))
 	fs.Root = d
 	for _, o := range opts {
 		o(&fs)
 	}
-	return &fs
+	return &fs, d
 }
 
 // NewQid generates a new, unique proto.Qid for use in a new file.
@@ -222,9 +234,11 @@ func (fs *FS) NewStat(name, uid, gid string, mode uint32) *proto.Stat {
 // RMFile simply enables the deletion of files and directories on the
 // FS subject to usual permissions checks.
 func RMFile(fs *FS, f FSNode) error {
-	parent := f.Parent()
-	parent.DeleteChild(f.Stat().Name)
-	return nil
+	parent, ok := f.Parent().(ModDir)
+	if !ok {
+		return fmt.Errorf("%s does not support modification.", FullPath(f.Parent()))
+	}
+	return parent.DeleteChild(f.Stat().Name)
 }
 
 // Options are used to configure an FS with NewFS
@@ -276,13 +290,71 @@ func WithWalkFailHandler(f func(fs *FS, parent Dir, name string) (FSNode, error)
 	}
 }
 
-// WithAuth configures the server to require authentication. 
+// WithAuth configures the server to require authentication.
 // Authentication is performed using the standard plan9 or plan9port tools.
 // A factotum must be running in the same namespace as this server in order
 // to authenticate users. Please see http://man.cat-v.org/9front/4/factotum
 // for more information.
-func WithAuth() Option {
+func WithAuth(authFunc func(s io.ReadWriter) (string, error)) Option {
 	return func(fs *FS) {
-		fs.doAuth = true
+		fs.authFunc = authFunc
+	}
+}
+
+func Plan9Auth(s io.ReadWriter) (string, error) {
+	fmt.Println("STARTING LIBAUTH PROXY")
+	defer fmt.Println("FINISHED LIBAUTH PROXY")
+	ai, err := libauth.Proxy(s, "proto=p9any role=server")
+	if err != nil {
+		log.Printf("Authentication Error: %s", err)
+		return "", err
+	} else {
+		log.Printf("AuthInfo: [Cuid: %s, Suid: %s, Cap: %s]", ai.Cuid, ai.Suid, ai.Cap)
+		return ai.Cuid, nil
+	}
+}
+
+// Generic SASL authentication
+//func SaslAuth(s io.ReadWriter) (string, error) {
+//
+//}
+
+// PlainAuth takes a map of username to password.
+func PlainAuth(userpass map[string]string) func(io.ReadWriter) (string, error) {
+	return func(s io.ReadWriter) (string, error) {
+		auth := sasl.NewPlainServer(func(identity, username, password string) error {
+			if identity != username {
+				return fmt.Errorf("Identity and Username must match.")
+			}
+			pass, ok := userpass[username]
+			if !ok {
+				return fmt.Errorf("No such user (TODO: make sure this does not go to client)")
+			}
+			if pass != password {
+				return fmt.Errorf("FAILED PASSWORD  (TODO: make sure this does not go to client)")
+			}
+			return nil
+		})
+
+		for {
+			var ba [4096]byte
+			fmt.Printf("READ1\n")
+			n, err := s.Read(ba[:])
+			if err != nil {
+				return "", err
+			}
+			bs := ba[:n]
+			challenge, done, err := auth.Next(bs)
+			if err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				return "", err
+			}
+			if done {
+				fmt.Printf("SUCCESS!\n")
+				return "TODO", nil
+			}
+			fmt.Printf("WRITE1\n")
+			s.Write(challenge)
+		}
 	}
 }

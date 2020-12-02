@@ -23,6 +23,15 @@ import (
 	"github.com/knusbaum/go9p/proto"
 )
 
+// If Verbose is true, incoming and outgoing 9p messages will be printed to stderr.
+var Verbose bool
+
+func verboseLog(msg string, args ...interface{}) {
+	if Verbose {
+		log.Printf(msg, args...)
+	}
+}
+
 // The Srv interface is used to handle 9p2000 messages.
 // Each function handles a specific type of message, and
 // should return a response. If some expected error occurs,
@@ -76,17 +85,18 @@ func handleIO(r io.Reader, w io.Writer, srv Srv) error {
 		if err != nil {
 			return err
 		}
-		//log.Printf("=in=> %v\n", call)
+		verboseLog("=in=> %s\n", call)
 		resp, err := handleCall(call, srv, conn)
 		if err != nil {
 			return err
 		}
+
 		if resp == nil {
 			// This case happens when an active tag is
 			// flushed.
 			continue
 		}
-		//log.Printf("<=out= %v\n", resp)
+		verboseLog("<=out= %s\n", resp)
 		_, err = w.Write(resp.Compose())
 		if err != nil {
 			return err
@@ -108,7 +118,7 @@ func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
 	go func() {
 		outgoingWG.Done()
 		for call := range outgoing {
-			//log.Printf("<=out= %v\n", call)
+			verboseLog("<=out= %s\n", call)
 			_, err := w.Write(call.Compose())
 			if err != nil {
 				log.Printf("Protocol error: %v\n", err)
@@ -143,7 +153,7 @@ func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
 	defer close(incoming)
 	for {
 		call, err := proto.ParseCall(r)
-		//log.Printf("=in=> %v\n", call)
+		verboseLog("=in=> %s\n", call)
 		if err != nil {
 			log.Printf("Protocol error: %v\n", err)
 			return err
@@ -154,7 +164,6 @@ func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
 			panic("FAILED TO QUEUE INCOMING!")
 		}
 	}
-
 	return nil
 }
 

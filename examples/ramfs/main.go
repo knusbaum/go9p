@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	fs := fs.NewFS("glenda", "glenda", 0777,
+	fs, _ := fs.NewFS("glenda", "glenda", 0777,
 		fs.WithCreateFile(fs.CreateStaticFile),
 		fs.WithCreateDir(fs.CreateStaticDir),
 		fs.WithRemoveFile(fs.RMFile),

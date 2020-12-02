@@ -47,17 +47,17 @@ func WrapEvents(evFile *fs.StaticFile, f fs.File) fs.File {
 }
 
 func main() {
-	utilFS := fs.NewFS("glenda", "glenda", 0777)
+	utilFS, root := fs.NewFS("glenda", "glenda", 0777)
 	events := fs.NewStaticFile(utilFS.NewStat("events", "glenda", "glenda", 0444), []byte{})
-	utilFS.Root.AddChild(events)
-	utilFS.Root.AddChild(
+	root.AddChild(events)
+	root.AddChild(
 		WrapEvents(events, fs.NewDynamicFile(utilFS.NewStat("time", "glenda", "glenda", 0444),
 			func() []byte {
 				return []byte(time.Now().String() + "\n")
 			},
 		)),
 	)
-	utilFS.Root.AddChild(
+	root.AddChild(
 		WrapEvents(events, &fs.WrappedFile{
 			File: fs.NewBaseFile(utilFS.NewStat("random", "glenda", "glenda", 0444)),
 			ReadF: func(fid uint64, offset uint64, count uint64) ([]byte, error) {

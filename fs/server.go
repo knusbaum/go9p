@@ -9,8 +9,6 @@ import (
 
 	"github.com/knusbaum/go9p"
 	"github.com/knusbaum/go9p/proto"
-
-	"github.com/Plan9-Archive/libauth"
 )
 
 type fidInfo struct {
@@ -41,6 +39,7 @@ type conn struct {
 	connID uint32
 	fids   sync.Map
 	tags   sync.Map
+	msize  uint32
 }
 
 type ctxCancel struct {
@@ -95,7 +94,11 @@ func (s *server) NewConn() go9p.Conn {
 
 func (_ *server) Version(gc go9p.Conn, t *proto.TRVersion) (proto.FCall, error) {
 	var reply proto.TRVersion
-	if t.Type == proto.Tversion {
+	if t.Type == proto.Tversion && t.Version == "9P2000" {
+		if t.Msize > proto.MaxMsgLen {
+			t.Msize = proto.MaxMsgLen
+		}
+		gc.(*conn).msize = t.Msize
 		reply = *t
 		reply.Type = proto.Rversion
 		return &reply, nil
@@ -105,7 +108,7 @@ func (_ *server) Version(gc go9p.Conn, t *proto.TRVersion) (proto.FCall, error) 
 }
 
 func (s *server) Auth(gc go9p.Conn, t *proto.TAuth) (proto.FCall, error) {
-	if !s.fs.doAuth {
+	if s.fs.authFunc == nil {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Authentication Not Supported."}, nil
 	}
 	c := gc.(*conn)
@@ -124,20 +127,18 @@ func (s *server) Auth(gc go9p.Conn, t *proto.TAuth) (proto.FCall, error) {
 		n:        authFile,
 		openMode: proto.Ordwr,
 	}
+	log.Printf("Storing info in C: %p, t.Afid: %d\n", c, t.Afid)
 	c.fids.Store(t.Afid, info)
 
-	go func(s BiDiStream) {
-		defer s.Close()
-		ai, err := libauth.Proxy(s, "proto=p9any role=server")
+	go func() {
+		defer stream.Close()
+		uname, err := s.fs.authFunc(stream)
 		if err != nil {
 			info.extra = err
-			log.Printf("Authentication Error: %s", err)
 		} else {
-			info.extra = ai
-			log.Printf("AuthInfo: [Cuid: %s, Suid: %s, Cap: %s]", ai.Cuid, ai.Suid, ai.Cap)
+			info.extra = uname
 		}
-
-	}(stream)
+	}()
 
 	return &proto.RAuth{proto.Header{proto.Rauth, t.Tag}, authFile.Stat().Qid}, nil
 }
@@ -145,27 +146,32 @@ func (s *server) Auth(gc go9p.Conn, t *proto.TAuth) (proto.FCall, error) {
 func (s *server) Attach(gc go9p.Conn, t *proto.TAttach) (proto.FCall, error) {
 	c := gc.(*conn)
 
-	if !s.fs.doAuth {
+	if s.fs.authFunc == nil {
+		log.Printf("%s attached", t.Uname)
 		c.fids.Store(t.Fid, newFidInfo(t.Uname, s.fs.Root))
 		return &proto.RAttach{proto.Header{proto.Rattach, t.Tag}, s.fs.Root.Stat().Qid}, nil
 	}
 
+	log.Printf("Loading info from C: %p, t.Afid: %d\n", c, t.Afid)
 	i, ok := c.fids.Load(t.Afid)
 	if !ok {
-		return &proto.RError{proto.Header{t.Type, t.Tag}, "Bad Afid."}, nil
+		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Not Authenticated."}, nil
 	}
 	info := i.(*fidInfo)
 	if err, ok := info.extra.(error); ok {
-		return &proto.RError{proto.Header{t.Type, t.Tag}, err.Error()}, nil
+		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, err.Error()}, nil
 	}
 
-	ai := info.extra.(*libauth.AuthInfo)
+	authName, ok := info.extra.(string)
+	if !ok {
+		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Not Authenticated."}, nil
+	}
 	// TODO: For some reason, these don't seem to need to match.
 	// User is authenticated as ai.Cuid, *not* necessarily as t.Uname.
 	//	if t.Uname != ai.Cuid {
 	//		return &proto.RError{proto.Header{t.Type, t.Tag}, "Bad attach uname"}, nil
 	//	}
-	c.fids.Store(t.Fid, newFidInfo(ai.Cuid, s.fs.Root))
+	c.fids.Store(t.Fid, newFidInfo(authName, s.fs.Root))
 	return &proto.RAttach{proto.Header{proto.Rattach, t.Tag}, s.fs.Root.Stat().Qid}, nil
 }
 
@@ -173,7 +179,7 @@ func (s *server) Walk(gc go9p.Conn, t *proto.TWalk) (proto.FCall, error) {
 	c := gc.(*conn)
 	i, ok := c.fids.Load(t.Fid)
 	if !ok {
-		return &proto.RError{proto.Header{t.Type, t.Tag}, "Bad Fid."}, nil
+		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Bad Fid."}, nil
 	}
 	info := i.(*fidInfo)
 	file := info.n
@@ -204,7 +210,14 @@ func (s *server) Walk(gc go9p.Conn, t *proto.TWalk) (proto.FCall, error) {
 				if f == nil {
 					return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "No such path"}, nil
 				}
-				dir.AddChild(f)
+				modDir, ok := dir.(ModDir)
+				if !ok {
+					return &proto.RError{proto.Header{proto.Rerror, t.Tag}, fmt.Sprintf("%s does not support modification.", FullPath(dir))}, nil
+				}
+				err = modDir.AddChild(f)
+				if err != nil {
+					return &proto.RError{proto.Header{proto.Rerror, t.Tag}, err.Error()}, nil
+				}
 				file = f
 			}
 			qids = append(qids, file.Stat().Qid)
@@ -305,8 +318,8 @@ func (s *server) Create(gc go9p.Conn, t *proto.TCreate) (proto.FCall, error) {
 
 func (_ *server) Read(gc go9p.Conn, t *proto.TRead) (proto.FCall, error) {
 	c := gc.(*conn)
-	if t.Count > proto.IOUnit {
-		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Read size too large."}, nil
+	if t.Count > c.msize-11 {
+		t.Count = c.msize - 11
 	}
 	i, ok := c.fids.Load(t.Fid)
 	if !ok {
@@ -386,11 +399,6 @@ func (_ *server) Write(gc go9p.Conn, t *proto.TWrite) (proto.FCall, error) {
 	}
 
 	offset := t.Offset
-	if info.openMode&0x10 == 0 {
-		// If we're not truncating, 0 offset is from EOF.
-		offset += info.openOffset
-	}
-
 	if f, ok := info.n.(File); ok {
 		n, err := f.Write(c.toConnFid(t.Fid), offset, t.Data)
 		if err != nil {
@@ -425,6 +433,7 @@ func (_ *server) Clunk(gc go9p.Conn, t *proto.TClunk) (proto.FCall, error) {
 func (s *server) Remove(gc go9p.Conn, t *proto.TRemove) (proto.FCall, error) {
 	c := gc.(*conn)
 	i, ok := c.fids.Load(t.Fid)
+	c.fids.Delete(t.Fid)
 	if !ok {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Bad Fid."}, nil
 	}
@@ -515,21 +524,21 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 			}
 		}
 
-		if newstat.Length != math.MaxUint64 {
+		if newstat.Length != math.MaxUint64 && newstat.Length != stat.Length {
 			if !openPermission(info.n, info.uname, proto.Owrite) {
-				fmt.Println("Can't alter length. Don't have write permission.")
+				//fmt.Printf("Can't alter length. Don't have write permission. OLD: %d, NEW: %d\n", stat.Length, newstat.Length)
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
-		if newstat.Mode != math.MaxUint32 {
+		if newstat.Mode != math.MaxUint32 && newstat.Mode != stat.Mode {
 			if relation != ugo_user {
-				fmt.Println("Can't alter mode. Not owner.")
+				//fmt.Printf("Can't alter mode. Not owner. OLD: %#o, NEW: %#o\n", stat.Mode, newstat.Mode)
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
-		if newstat.Mtime != math.MaxUint32 {
+		if newstat.Mtime != math.MaxUint32 && newstat.Mtime != stat.Mtime {
 			if relation != ugo_user {
 				fmt.Println("Can't alter mtime. Not owner.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
@@ -540,7 +549,7 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 			if info.n.Stat().Uid != info.uname ||
 				!userInGroup(info.uname, newstat.Gid) {
 				//fmt.Printf("uname: %s, gid: %s\n", c.uname, newstat.Gid)
-				//fmt.Println("Can't changegroup. Not owner or not member of new group.")
+				fmt.Println("Can't changegroup. Not owner or not member of new group.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
@@ -568,7 +577,9 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 		stat.Gid = newstat.Gid
 	}
 
-	info.n.WriteStat(&stat)
+	if err := info.n.WriteStat(&stat); err != nil {
+		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, err.Error()}, nil
+	}
 	return &proto.RWstat{proto.Header{proto.Rwstat, t.Tag}}, nil
 
 }

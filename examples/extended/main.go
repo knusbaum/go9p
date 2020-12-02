@@ -20,27 +20,34 @@ func (f *randomFile) Read(fid uint32, offset, count uint64) ([]byte, error) {
 }
 
 func main() {
-	extendedFS := fs.NewFS("glenda", "glenda", 0555,
+	extendedFS, root := fs.NewFS("glenda", "glenda", 0777,
+		fs.WithCreateFile(fs.CreateStaticFile),
+		fs.WithCreateDir(fs.CreateStaticDir),
 		fs.WithRemoveFile(fs.RMFile),
+		//fs.WithAuth(fs.Plan9Auth),
+		fs.WithAuth(fs.PlainAuth(map[string]string{
+			"kyle": "foo",
+			"jake": "bar",
+		})),
 	)
 
-	extendedFS.Root.AddChild(fs.NewStaticFile(
+	root.AddChild(fs.NewStaticFile(
 		extendedFS.NewStat("static", "glenda", "glenda", 0666),
 		[]byte("Hello, World!\n"),
 	))
 
-	extendedFS.Root.AddChild(fs.NewDynamicFile(
+	root.AddChild(fs.NewDynamicFile(
 		extendedFS.NewStat("dynamic", "glenda", "glenda", 0666),
 		func() []byte {
 			return []byte(time.Now().String() + "\n")
 		},
 	))
 
-	extendedFS.Root.AddChild(&randomFile{
+	root.AddChild(&randomFile{
 		*fs.NewBaseFile(extendedFS.NewStat("baseRand", "glenda", "glenda", 0666)),
 	})
 
-	extendedFS.Root.AddChild(&fs.WrappedFile{
+	root.AddChild(&fs.WrappedFile{
 		File: fs.NewBaseFile(extendedFS.NewStat("wrappedRand", "glenda", "glenda", 0666)),
 		ReadF: func(fid uint64, offset uint64, count uint64) ([]byte, error) {
 			bs := make([]byte, count)
@@ -49,5 +56,5 @@ func main() {
 		},
 	})
 
-	fmt.Println(go9p.PostSrv("extendedFS", extendedFS.Server()))
+	fmt.Println(go9p.Serve("0.0.0.0:9999", extendedFS.Server()))
 }

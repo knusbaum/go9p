@@ -2,10 +2,10 @@ package fs
 
 import (
 	"io"
+	"log"
 	"os"
 	"sync"
 	"time"
-	"log"
 )
 
 func resetTimer(t *time.Timer, d time.Duration) {
@@ -19,11 +19,13 @@ func resetTimer(t *time.Timer, d time.Duration) {
 	t.Reset(d)
 }
 
+// A StreamReader reads from a Stream. See Stream.AddReader.
 type StreamReader interface {
 	Read(p []byte) (n int, err error)
 	Close()
 }
 
+// A StreamReadWriter is just like a StreamReader, but allows the Reader to send data back to the Stream.
 type StreamReadWriter interface {
 	StreamReader
 	Write(p []byte) (n int, err error)
@@ -95,6 +97,14 @@ func (r *chanReader) Close() {
 	}
 }
 
+// A Stream is a fan-out pipe of data. Stream implements io.Writer, and can have multiple readers
+// associated with it, created with AddReader. How and whether data written with Write() is
+// delivered to every reader is up to the implementation.
+//
+// For instance, when calling stream.Write([]byte("abc")) on a stream with 3 readers, it is equally
+// valid for a stream to send "abc" to one and nothing to the others, or send "a" to one, "b" to
+// the second, and "c" to the third, or to send "abc" to all three. See individual Stream
+// implementations for their specific behavior.
 type Stream interface {
 	AddReader() StreamReader
 	RemoveReader(r StreamReader)
@@ -103,6 +113,12 @@ type Stream interface {
 	length() uint64 // length of the stream (or 0 if unknown)
 }
 
+// A BiDiStream is a bi-directional stream. It adds two methods to the Stream interface,
+// AddReadWriter and Read. BiDiStream allows Read()s of data written by StreamReadWriters. Although
+// there is no way to determine which StreamReadWriter wrote the bytes read by Read(), it is
+// guaranteed that a Write()s done by StreamReadWriters are delivered as complete chunks. That is,
+// all bytes from a single StreamReadWriter.Write() call will be read by Read() before bytes from
+// another StreamReader.Write() will be read.
 type BiDiStream interface {
 	Stream
 	AddReadWriter() StreamReadWriter
@@ -213,12 +229,15 @@ func (s *baseStream) Close() error {
 	return nil
 }
 
-type AsyncStream struct {
+// DroppingStream is a stream which will disconnect readers who aren't able to keep up with the
+// writer. The writer will slow down when writing (pausing for 50ms) to allow slower clients to
+// catch up, but those that cannot keep up will be closed.
+type DroppingStream struct {
 	baseStream
 }
 
-func NewAsyncStream(buffer int) *AsyncStream {
-	return &AsyncStream{
+func NewDroppingStream(buffer int) *DroppingStream {
+	return &DroppingStream{
 		baseStream{
 			bufflen:  buffer,
 			incoming: make(chan []byte, 10),
@@ -227,7 +246,7 @@ func NewAsyncStream(buffer int) *AsyncStream {
 	}
 }
 
-func (s *AsyncStream) Write(p []byte) (n int, err error) {
+func (s *DroppingStream) Write(p []byte) (n int, err error) {
 	s.Lock()
 	defer s.Unlock()
 	k := 0
@@ -251,6 +270,9 @@ func (s *AsyncStream) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// A BlockingStream will ensure all data is written to active StreamReaders, or block if the
+// readers are unable to receive the data. A certain number of bytes of data is buffered
+// (see NewBlockingStream). If an unresponsive reader is removed, Write will be able to continue.
 type BlockingStream struct {
 	baseStream
 	writeLock sync.Mutex
@@ -296,6 +318,9 @@ func (s *BlockingStream) tryWrite(readers []*chanReader, p []byte) []*chanReader
 	return laggers
 }
 
+// A SkippingStream Sends all Writes() to all StreamReaders, skipping those that are not able to
+// keep up. Once a StreamReader starts reading again, it will get new Writes, having skipped some
+// of the data. This may be good for things like event streams, audio, etc.
 type SkippingStream struct {
 	baseStream
 }
@@ -364,6 +389,8 @@ func (r *fileReader) Close() {
 	r.live = false
 }
 
+// A SavedStream is a file-backed stream. Readers receive the full contents of the stream starting
+// at the beginning and receive any new Writes.
 type SavedStream struct {
 	f       *os.File
 	path    string

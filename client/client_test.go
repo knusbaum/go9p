@@ -3,12 +3,13 @@ package client
 import (
 	"fmt"
 	"io"
+	"log"
 	"testing"
 	"time"
-	"log"
 
 	"github.com/knusbaum/go9p"
 	"github.com/knusbaum/go9p/fs"
+	"github.com/knusbaum/go9p/proto"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -27,9 +28,9 @@ func (t *TwoPipe) Close() error {
 var helloText string = "Hello, World!"
 
 func setup(t *testing.T) (*fs.FS, *Client) {
-	testFS := fs.NewFS("glenda", "glenda", 0777)
+	testFS, root := fs.NewFS("glenda", "glenda", 0777)
 	hello := fs.NewStaticFile(testFS.NewStat("hello", "glenda", "glenda", 0444), []byte(helloText))
-	testFS.Root.AddChild(hello)
+	root.AddChild(hello)
 
 	p1r, p1w := io.Pipe()
 	p2r, p2w := io.Pipe()
@@ -43,15 +44,15 @@ func setup(t *testing.T) (*fs.FS, *Client) {
 }
 
 func TestShutdown(testingtttt *testing.T) {
-	testFS := fs.NewFS("glenda", "glenda", 0777)
+	testFS, root := fs.NewFS("glenda", "glenda", 0777)
 	hello := fs.NewStaticFile(testFS.NewStat("hello", "glenda", "glenda", 0444), []byte(helloText))
-	testFS.Root.AddChild(hello)
+	root.AddChild(hello)
 
 	p1r, p1w := io.Pipe()
 	p2r, p2w := io.Pipe()
 	go func() { err := go9p.ServeReadWriter(p1r, p2w, testFS.Server()); log.Printf("ERROR RESULT: %s", err) }()
 	NewClient(&TwoPipe{p2r, p1w}, "glenda", "")
-	
+
 	p1r.Close()
 	p2r.Close()
 	time.Sleep(5 * time.Second)
@@ -67,10 +68,10 @@ func TestWalk(t *testing.T) {
 	c, err := NewClient(&TwoPipe{p2r, p1w}, "glenda", "")
 	fmt.Printf("C: %#v, ERR: %#v\n", c, err)
 	assert.NoError(t, err)
-	f, err := c.Open("/foo/bar/baz/hello")
+	f, err := c.Open("/foo/bar/baz/hello", proto.Oread)
 	assert.Error(t, err)
 
-	f, err = c.Open("/hello")
+	f, err = c.Open("/hello", proto.Oread)
 	assert.NoError(t, err)
 
 	bs := make([]byte, 1024)

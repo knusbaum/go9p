@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/knusbaum/go9p/proto"
@@ -73,16 +74,18 @@ func (f *StaticFile) Write(fid uint64, offset uint64, data []byte) (uint32, erro
 // StaticDir is a Dir that simply keeps track of a
 // set of child Files.
 type StaticDir struct {
-	dStat    proto.Stat
-	children map[string]FSNode
+	dStat proto.Stat
+	//children map[string]FSNode
+	children []FSNode
 	parent   Dir
 	sync.RWMutex
 }
 
 func NewStaticDir(stat *proto.Stat) *StaticDir {
 	dir := &StaticDir{
-		dStat:    *stat,
-		children: make(map[string]FSNode),
+		dStat: *stat,
+		//children: make(map[string]FSNode),
+		children: make([]FSNode, 0),
 	}
 	// Make sure stat is marked as a directory.
 	dir.dStat.Mode |= proto.DMDIR
@@ -118,8 +121,8 @@ func (d *StaticDir) Children() map[string]FSNode {
 	d.RLock()
 	defer d.RUnlock()
 	ret := make(map[string]FSNode)
-	for k, v := range d.children {
-		ret[k] = v
+	for _, n := range d.children {
+		ret[n.Stat().Name] = n
 	}
 	return ret
 }
@@ -127,7 +130,13 @@ func (d *StaticDir) Children() map[string]FSNode {
 func (d *StaticDir) AddChild(n FSNode) error {
 	d.Lock()
 	defer d.Unlock()
-	d.children[n.Stat().Name] = n
+	stat := n.Stat()
+	for _, n := range d.children {
+		if n.Stat().Name == stat.Name {
+			return fmt.Errorf("%s already exists", stat.Name)
+		}
+	}
+	d.children = append(d.children, n)
 	n.SetParent(d)
 	return nil
 }
@@ -135,9 +144,16 @@ func (d *StaticDir) AddChild(n FSNode) error {
 func (d *StaticDir) DeleteChild(name string) error {
 	d.Lock()
 	defer d.Unlock()
-	c := d.children[name]
-	c.SetParent(nil)
-	delete(d.children, name)
+	k := 0
+	for _, c := range d.children {
+		if c.Stat().Name != name {
+			d.children[k] = c
+			k++
+		} else {
+			c.SetParent(nil)
+		}
+	}
+	d.children = d.children[:k]
 	return nil
 }
 
@@ -145,16 +161,24 @@ func (d *StaticDir) DeleteChild(name string) error {
 // It will add an empty StaticFile to the FS whenever a client attempts to
 // create a file.
 func CreateStaticFile(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (File, error) {
+	modParent, ok := parent.(ModDir)
+	if !ok {
+		return nil, fmt.Errorf("%s does not support modification.", FullPath(parent))
+	}
 	f := NewStaticFile(fs.NewStat(name, user, user, perm), []byte{})
-	parent.AddChild(f)
-	return f, nil
+	err := modParent.AddChild(f)
+	return f, err
 }
 
 // CreateStaticDir is a function meant to be passed to WithCreateDir.
 // It will add an empty StaticDir to the FS whenever a client attempts to
 // create a directory.
 func CreateStaticDir(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (Dir, error) {
+	modParent, ok := parent.(ModDir)
+	if !ok {
+		return nil, fmt.Errorf("%s does not support modification.", FullPath(parent))
+	}
 	f := NewStaticDir(fs.NewStat(name, user, user, perm))
-	parent.AddChild(f)
-	return f, nil
+	err := modParent.AddChild(f)
+	return f, err
 }

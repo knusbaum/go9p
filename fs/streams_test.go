@@ -15,14 +15,14 @@ var testFile string = "/tmp/go9p.test.tmp"
 
 var _ File = &StreamFile{}
 
-var _ BiDiStream = NewAsyncStream(100)
+var _ BiDiStream = NewDroppingStream(100)
 var _ BiDiStream = NewBlockingStream(100)
 var _ BiDiStream = NewSkippingStream(50)
 var _ Stream = &SavedStream{}
 
 func TestStream(t *testing.T) {
 	for name, sf := range map[string]func() Stream{
-		"async":    func() Stream { return NewAsyncStream(50) },
+		"async":    func() Stream { return NewDroppingStream(50) },
 		"blocking": func() Stream { return NewBlockingStream(50) },
 		"skipping": func() Stream { return NewSkippingStream(50) },
 		"saved": func() Stream {
@@ -112,7 +112,7 @@ func TestAsyncStream(t *testing.T) {
 	t.Run("Timeout", func(t *testing.T) {
 		assert := assert.New(t)
 
-		s := NewAsyncStream(100)
+		s := NewDroppingStream(100)
 		r := s.AddReader()
 		for i := 0; i < 1000; i++ {
 			n, err := s.Write([]byte("a"))
@@ -218,7 +218,7 @@ func TestSavedStream(t *testing.T) {
 
 func TestBiDiStream(t *testing.T) {
 	for name, sf := range map[string]func() BiDiStream{
-		"async":    func() BiDiStream { return NewAsyncStream(50) },
+		"async":    func() BiDiStream { return NewDroppingStream(50) },
 		"blocking": func() BiDiStream { return NewBlockingStream(50) },
 		"skipping": func() BiDiStream { return NewSkippingStream(50) },
 	} {

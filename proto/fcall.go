@@ -50,7 +50,7 @@ const (
 )
 
 const (
-	maxMsgLen = 65535 // 65k should be enough for anyone.
+	MaxMsgLen = 65535 // 65k should be enough for anyone.
 )
 
 // FCall - the interface that all FCall types imlement. The String
@@ -141,7 +141,7 @@ func ParseCall(r io.Reader) (FCall, error) {
 
 	// We now have the length of the call.
 	length, _ := fromLittleE32(sizebuff)
-	if length > maxMsgLen {
+	if length > MaxMsgLen {
 		return nil, fmt.Errorf("Can't allocate %d bytes for message.", length)
 	}
 

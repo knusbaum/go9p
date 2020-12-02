@@ -157,6 +157,7 @@ func (r *Dir) oldGetattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut
 		r.statTTL = time.Now().Add(DefaultTTL)
 	}
 	out.AttrValid = ncTTL
+	out.Nlink = 1
 	out.Ino = r.statCache.Qid.Uid
 	out.Mode = r.statCache.Mode
 	out.Size = r.statCache.Length
@@ -175,6 +176,7 @@ func (r *Dir) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) s
 		for _, stat := range dir.dirCache {
 			if stat.Name == base {
 				out.AttrValid = ncTTL
+				out.Nlink = 1
 				out.Ino = stat.Qid.Uid
 				out.Mode = stat.Mode
 				out.Size = stat.Length
@@ -264,6 +266,7 @@ func (r *Dir) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.
 		if stat.Name == name {
 			out.EntryValid = ncTTL
 			out.AttrValid = ncTTL
+			out.Nlink = 1
 			out.Ino = stat.Qid.Uid
 			out.Mode = stat.Mode
 			out.Size = stat.Length
@@ -357,9 +360,20 @@ func (f *FileNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 		//log.Printf("FUSE: Open(%s) -> Error: %s", f.path, err)
 		return nil, 0, syscall.EINVAL
 	}
+	// TODO: Optimize
+	stat, err := f.client.Stat(f.path)
+	if err != nil {
+		log.Printf("STAT RETURNED ERROR: %s\n", err)
+		return nil, 0, syscall.ENOENT
+	}
+	if stat.Length == 0 {
+		log.Printf("UNSEEKABLE STREAM")
+		return &File{file, f}, fuse.FOPEN_DIRECT_IO, 0
+	}
+
+	return &File{file, f}, 0, 0
 	//log.Printf("FUSE: Open(%s) -> OK\n", f.path)
 	//return &File{file, f}, fuse.FOPEN_DIRECT_IO, 0
-	return &File{file, f}, 0, 0
 	//Inode.NotifyContent
 	//return &File{file, f}, fuse.FOPEN_KEEP_CACHE, 0
 }
@@ -381,6 +395,7 @@ func (f *FileNode) oldGetattr(ctx context.Context, h fs.FileHandle, out *fuse.At
 		return syscall.ENOENT
 	}
 	out.AttrValid = ncTTL
+	out.Nlink = 1
 	out.Ino = stat.Qid.Uid
 	out.Mode = stat.Mode
 	out.Size = stat.Length
@@ -399,6 +414,7 @@ func (f *FileNode) Getattr(ctx context.Context, h fs.FileHandle, out *fuse.AttrO
 		for _, stat := range dir.dirCache {
 			if stat.Name == base {
 				out.AttrValid = ncTTL
+				out.Nlink = 1
 				out.Ino = stat.Qid.Uid
 				out.Mode = stat.Mode
 				out.Size = stat.Length

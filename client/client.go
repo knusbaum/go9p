@@ -258,7 +258,7 @@ func (c *Client) getResponse(call proto.FCall) (proto.FCall, error) {
 func (c *Client) send(call proto.FCall) error {
 	c.Lock()
 	defer c.Unlock()
-	log.Printf("<=out= %v\n", call)
+	//log.Printf("<=out= %v\n", call)
 	_, err := c.c.Write(call.Compose())
 	return err
 }

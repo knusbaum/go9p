@@ -5,9 +5,7 @@ import (
 	"hash/crc64"
 	"log"
 	"os"
-	"os/user"
 	"path"
-	"syscall"
 
 	"github.com/knusbaum/go9p/fs"
 	"github.com/knusbaum/go9p/proto"
@@ -96,23 +94,6 @@ func (f *RealDir) WriteStat(s *proto.Stat) error {
 	//return fmt.Errorf("wstat not implemented")
 	//fmt.Printf("NOTHING CHANGED.\n")
 	return nil
-}
-
-func getUserGroup(info os.FileInfo) (string, string, error) {
-	sysi := info.Sys()
-	if sysi == nil {
-		return "", "", fmt.Errorf("Cannot get system-specific info.")
-	}
-	sys := sysi.(*syscall.Stat_t)
-	u, err := user.LookupId(fmt.Sprintf("%d", sys.Uid))
-	if err != nil {
-		return "", "", fmt.Errorf("Failed to lookup user: %s\n", err)
-	}
-	g, err := user.LookupGroupId(fmt.Sprintf("%d", sys.Gid))
-	if err != nil {
-		return "", "", fmt.Errorf("Failed to lookup group: %s\n", err)
-	}
-	return u.Username, g.Name, nil
 }
 
 func (d *RealDir) Children() map[string]fs.FSNode {

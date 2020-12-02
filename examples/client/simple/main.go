@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -27,8 +26,8 @@ func main() {
 	}
 	defer f.Close()
 	bs, err := ioutil.ReadAll(f)
-	fmt.Printf("RECEIVED: [%s]\n", string(bs))
+	log.Printf("RECEIVED: [%s]\n", string(bs))
 
-	fmt.Printf("Reading directory /\n")
+	log.Printf("Reading directory /\n")
 	c.Readdir("/")
 }

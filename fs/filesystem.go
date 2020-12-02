@@ -79,18 +79,14 @@ type ModDir interface {
 // FullPath is a helper function that assembles the names
 // of all the parent nodes of f into a full path string.
 func FullPath(f FSNode) string {
-	//fmt.Printf("Getting Full Path for %s\n", f.Stat().Name)
 	if f == nil {
 		return ""
 	}
 	parent := f.Parent()
 	if parent == nil {
-		//fmt.Printf("ROOT: %s\n", f.Stat().Name)
 		return f.Stat().Name
 	}
-	//fmt.Printf("Getting Full Path for Parent: %s\n", parent.Stat().Name)
 	fp := FullPath(parent)
-	//fmt.Printf("Not root: %s / %s\n", fp, f.Stat().Name)
 	return strings.Replace(fp+"/"+f.Stat().Name, "//", "/", -1)
 }
 
@@ -302,8 +298,8 @@ func WithAuth(authFunc func(s io.ReadWriter) (string, error)) Option {
 }
 
 func Plan9Auth(s io.ReadWriter) (string, error) {
-	fmt.Println("STARTING LIBAUTH PROXY")
-	defer fmt.Println("FINISHED LIBAUTH PROXY")
+	log.Println("STARTING LIBAUTH PROXY")
+	defer log.Println("FINISHED LIBAUTH PROXY")
 	ai, err := libauth.Proxy(s, "proto=p9any role=server")
 	if err != nil {
 		log.Printf("Authentication Error: %s", err)
@@ -338,7 +334,7 @@ func PlainAuth(userpass map[string]string) func(io.ReadWriter) (string, error) {
 
 		for {
 			var ba [4096]byte
-			fmt.Printf("READ1\n")
+			log.Printf("READ1\n")
 			n, err := s.Read(ba[:])
 			if err != nil {
 				return "", err
@@ -346,14 +342,14 @@ func PlainAuth(userpass map[string]string) func(io.ReadWriter) (string, error) {
 			bs := ba[:n]
 			challenge, done, err := auth.Next(bs)
 			if err != nil {
-				fmt.Printf("ERROR: %s\n", err)
+				log.Printf("ERROR: %s\n", err)
 				return "", err
 			}
 			if done {
-				fmt.Printf("SUCCESS!\n")
+				log.Printf("SUCCESS!\n")
 				return "TODO", nil
 			}
-			fmt.Printf("WRITE1\n")
+			log.Printf("WRITE1\n")
 			s.Write(challenge)
 		}
 	}

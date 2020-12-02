@@ -62,16 +62,12 @@ func (f *RealDir) Stat() proto.Stat {
 func (f *RealDir) WriteStat(s *proto.Stat) error {
 	current := f.Stat()
 	if s.Mode != current.Mode {
-		fmt.Printf("OLD MODE: %#o NEW MODE: %#o\n", current.Mode, s.Mode)
 		return os.Chmod(f.Path, os.FileMode(s.Mode))
-		//return fmt.Errorf("mode change not implemented")
 	}
 	if s.Length != current.Length {
 		return os.Truncate(f.Path, int64(s.Length))
 	}
 	if s.Name != current.Name {
-		fmt.Printf("OLD NAME: %s NEW NAME: %s\n", current.Name, s.Name)
-		//current.Name = s.Name
 		dir := path.Dir(f.Path)
 		newPath := path.Join(dir, s.Name)
 		err := os.Rename(f.Path, newPath)
@@ -82,17 +78,13 @@ func (f *RealDir) WriteStat(s *proto.Stat) error {
 		return nil
 	}
 	if s.Uid != current.Uid {
-		fmt.Printf("OLD Uid: %s NEW Uid: %s\n", current.Uid, s.Uid)
+		//log.Printf("OLD Uid: %s NEW Uid: %s\n", current.Uid, s.Uid)
 		return fmt.Errorf("Owner change not implemented")
 	}
 	if s.Gid != current.Gid {
-		fmt.Printf("OLD Gid: %s NEW Gid: %s\n", current.Gid, s.Gid)
+		//log.Printf("OLD Gid: %s NEW Gid: %s\n", current.Gid, s.Gid)
 		return fmt.Errorf("Group change not implemented")
 	}
-	//fmt.Printf("NEWSTAT: %#v\nOLDSTAT: %#v\n", s, current)
-	// TODO
-	//return fmt.Errorf("wstat not implemented")
-	//fmt.Printf("NOTHING CHANGED.\n")
 	return nil
 }
 

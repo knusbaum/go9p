@@ -30,7 +30,7 @@ type BiDiStreamFile struct {
 // returned. Each Open() creates a new Reader or ReadWriter on
 // the stream, and subsequent reads and writes on that fid operate
 // on that Reader or ReadWriter. A Close() on a fid will close the
-// Reader/ReadWriter. 
+// Reader/ReadWriter.
 func NewStreamFile(stat *proto.Stat, s Stream) File {
 	if bidi, ok := s.(BiDiStream); ok {
 		return &BiDiStreamFile{
@@ -135,8 +135,8 @@ func (f *BiDiStreamFile) Close(fid uint64) error {
 }
 
 type streamWithReader struct {
-	s BiDiStream
-	srw StreamReadWriter	
+	s   BiDiStream
+	srw StreamReadWriter
 }
 
 // PipeFile creates a new full-duplex stream for each call to Open()
@@ -146,18 +146,18 @@ type streamWithReader struct {
 type PipeFile struct {
 	*BaseFile
 	fidReader map[uint64]streamWithReader
-	handler func(s BiDiStream)
+	handler   func(s BiDiStream)
 }
 
-// NewPipeFile creates a new PipeFile that will create a new bi-directional 
+// NewPipeFile creates a new PipeFile that will create a new bi-directional
 // stream for every Open(), starting a goroutine calling handler on the stream.
 // handler should loop to read the stream. When handler returns, the stream will
 // be closed.
 func NewPipeFile(stat *proto.Stat, handler func(s BiDiStream)) *PipeFile {
-		return &PipeFile{
+	return &PipeFile{
 		BaseFile:  NewBaseFile(stat),
 		fidReader: make(map[uint64]streamWithReader),
-		handler: handler,
+		handler:   handler,
 	}
 }
 
@@ -197,7 +197,6 @@ func (f *PipeFile) Write(fid uint64, offset uint64, data []byte) (uint32, error)
 }
 
 func (f *PipeFile) Close(fid uint64) error {
-	//fmt.Printf("Closing fid %d!\n", fid)
 	s, ok := f.fidReader[fid]
 	if ok {
 		s.s.Close()

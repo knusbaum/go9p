@@ -77,16 +77,12 @@ func (f *RealFile) Stat() proto.Stat {
 func (f *RealFile) WriteStat(s *proto.Stat) error {
 	current := f.Stat()
 	if s.Mode != current.Mode {
-		fmt.Printf("OLD MODE: %#o NEW MODE: %#o\n", current.Mode, s.Mode)
 		return os.Chmod(f.Path, os.FileMode(s.Mode))
-		//return fmt.Errorf("mode change not implemented")
 	}
 	if s.Length != current.Length {
 		return os.Truncate(f.Path, int64(s.Length))
 	}
 	if s.Name != current.Name {
-		fmt.Printf("OLD NAME: %s NEW NAME: %s\n", current.Name, s.Name)
-		//current.Name = s.Name
 		dir := path.Dir(f.Path)
 		newPath := path.Join(dir, s.Name)
 		err := os.Rename(f.Path, newPath)
@@ -97,17 +93,13 @@ func (f *RealFile) WriteStat(s *proto.Stat) error {
 		return nil
 	}
 	if s.Uid != current.Uid {
-		fmt.Printf("OLD Uid: %s NEW Uid: %s\n", current.Uid, s.Uid)
+		//log.Printf("OLD Uid: %s NEW Uid: %s\n", current.Uid, s.Uid)
 		return fmt.Errorf("Owner change not implemented")
 	}
 	if s.Gid != current.Gid {
-		fmt.Printf("OLD Gid: %s NEW Gid: %s\n", current.Gid, s.Gid)
+		//log.Printf("OLD Gid: %s NEW Gid: %s\n", current.Gid, s.Gid)
 		return fmt.Errorf("Group change not implemented")
 	}
-	//fmt.Printf("NEWSTAT: %#v\nOLDSTAT: %#v\n", s, current)
-	// TODO
-	//return fmt.Errorf("wstat not implemented")
-	//fmt.Printf("NOTHING CHANGED.\n")
 	return nil
 }
 
@@ -133,7 +125,6 @@ func convertFlag(mode proto.Mode) int {
 func (f *RealFile) Open(fid uint64, omode proto.Mode) error {
 	file, err := os.OpenFile(f.Path, convertFlag(omode), 0)
 	if err != nil {
-		fmt.Printf("FAILED TO OPEN %s: %s\n", f.Path, err)
 		return err
 	}
 	f.opens[fid] = file
@@ -158,7 +149,6 @@ func (f *RealFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error)
 func (f *RealFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
 	file := f.opens[fid]
 	n, err := file.WriteAt(data, int64(offset))
-	//fmt.Printf("[%s(%d)] %d/%d bytes at offset %d (%s)\n", f.Path, fid, n, len(data), offset, err)
 	return uint32(n), err
 }
 

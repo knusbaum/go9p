@@ -90,7 +90,7 @@ func (r *Dir) Rename(ctx context.Context, name string, newParent fs.InodeEmbedde
 	}
 	err := r.client.WStat(path.Join(r.path, name), &stat)
 	if err != nil {
-		fmt.Printf("WSTAT RETURNED ERROR: %s\n", err)
+		log.Printf("WSTAT RETURNED ERROR: %s\n", err)
 		return syscall.ENOENT
 	}
 	r.dirTTL = time.Time{}
@@ -150,7 +150,7 @@ func (r *Dir) oldGetattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut
 		//log.Printf("oldGetattr(%s)", r.path)
 		stat, err := r.client.Stat(r.path)
 		if err != nil {
-			fmt.Printf("STAT RETURNED ERROR: %s\n", err)
+			log.Printf("STAT RETURNED ERROR: %s\n", err)
 			return syscall.ENOENT
 		}
 		r.statCache = stat
@@ -213,7 +213,7 @@ func (r *Dir) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAttrIn, 
 	if send {
 		err := r.client.WStat(r.path, &stat)
 		if err != nil {
-			fmt.Printf("WSTAT RETURNED ERROR: %s\n", err)
+			log.Printf("WSTAT RETURNED ERROR: %s\n", err)
 			return syscall.ENOENT
 		}
 	}
@@ -270,7 +270,7 @@ func (r *Dir) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.
 			out.Mtime = uint64(stat.Mtime)
 			fullPath := path.Join(r.path, name)
 			if stat.Mode&proto.DMDIR > 0 {
-				//fmt.Printf("Making DIR for %s\n", path.Join(r.path, name))
+				//log.Printf("Making DIR for %s\n", path.Join(r.path, name))
 				if dir := dirGet(fullPath); dir != nil {
 					return r.NewInode(ctx, dir, fs.StableAttr{Mode: fuse.S_IFDIR, Ino: crc64.Checksum([]byte(fullPath), crc64Table)}), 0
 				}
@@ -368,7 +368,7 @@ func (f *FileNode) oldGetattr(ctx context.Context, h fs.FileHandle, out *fuse.At
 	// 	if f.statCache == nil || time.Now().After(f.ttl) {
 	// 		stat, err := f.client.Stat(f.path)
 	// 		if err != nil {
-	// 			fmt.Printf("STAT RETURNED ERROR: %s\n", err)
+	// 			log.Printf("STAT RETURNED ERROR: %s\n", err)
 	// 			return syscall.ENOENT
 	// 		}
 	// 		f.statCache = stat
@@ -377,7 +377,7 @@ func (f *FileNode) oldGetattr(ctx context.Context, h fs.FileHandle, out *fuse.At
 	//log.Printf("FileNode.oldGetattr(%s)", f.path)
 	stat, err := f.client.Stat(f.path)
 	if err != nil {
-		fmt.Printf("STAT RETURNED ERROR: %s\n", err)
+		log.Printf("STAT RETURNED ERROR: %s\n", err)
 		return syscall.ENOENT
 	}
 	out.AttrValid = ncTTL
@@ -438,7 +438,7 @@ func (f *FileNode) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAtt
 		//log.Printf("SENDING WSTAT")
 		err := f.client.WStat(f.path, &stat)
 		if err != nil {
-			fmt.Printf("WSTAT RETURNED ERROR: %s\n", err)
+			log.Printf("WSTAT RETURNED ERROR: %s\n", err)
 			return syscall.ENOENT
 		}
 	}
@@ -480,14 +480,14 @@ func (f *File) Setattr(ctx context.Context, in *fuse.SetAttrIn, out *fuse.AttrOu
 	log.Printf("(*File).SetAttr(%s)", f.node.path)
 	stat, err := f.node.client.Stat(f.node.path)
 	if err != nil {
-		fmt.Printf("STAT RETURNED ERROR: %s\n", err)
+		log.Printf("STAT RETURNED ERROR: %s\n", err)
 		return syscall.ENOENT
 	}
 	stat.Mode = in.Mode
 	stat.Length = in.Size
 	err = f.node.client.WStat(f.node.path, stat)
 	if err != nil {
-		fmt.Printf("WSTAT RETURNED ERROR: %s\n", err)
+		log.Printf("WSTAT RETURNED ERROR: %s\n", err)
 		return syscall.ENOENT
 	}
 	out.Mode = stat.Mode
@@ -516,7 +516,7 @@ func main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-		fmt.Fprintf(flag.CommandLine.Output(), "  9pmount [options] address mountpoint\nOptions:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  mount9p [options] address mountpoint\nOptions:\n")
 		flag.PrintDefaults()
 	}
 	debug := flag.Bool("debug", false, "print debug data")

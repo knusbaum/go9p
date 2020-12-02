@@ -25,4 +25,3 @@ func getUserGroup(info os.FileInfo) (string, string, error) {
 	}
 	return u.Username, g.Name, nil
 }
-

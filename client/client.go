@@ -88,8 +88,8 @@ func WithAuth(f func(user string, s io.ReadWriter) (string, error)) Option {
 }
 
 func Plan9Auth(user string, s io.ReadWriter) (string, error) {
-	//fmt.Println("STARTING LIBAUTH PROXY")
-	//defer fmt.Println("FINISHED LIBAUTH PROXY")
+	//log.Println("STARTING LIBAUTH PROXY")
+	//defer log.Println("FINISHED LIBAUTH PROXY")
 	ai, err := libauth.Proxy(s, "proto=p9any role=client user=%s", user)
 	if err != nil {
 		log.Printf("Authentication Error: %s", err)
@@ -107,22 +107,22 @@ func PlainAuth(password string) func(string, io.ReadWriter) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		fmt.Printf("WRITE1\n")
+		log.Printf("WRITE1\n")
 		//s.Write([]byte(mech))
 		var ba [4096]byte
 		if ir != nil {
-			// 			fmt.Printf("READ1\n")
+			// 			log.Printf("READ1\n")
 			// 			_, err := s.Read(ba[:])
 			// 			if err != nil {
 			// 				return "", err
 			// 			}
 			// 			//bs := ba[:n]
-			// 			fmt.Printf("WRITE2\n")
-			fmt.Printf("WRITE1\n")
+			// 			log.Printf("WRITE2\n")
+			log.Printf("WRITE1\n")
 			s.Write(ir)
 		}
 		for {
-			fmt.Printf("READ2\n")
+			log.Printf("READ2\n")
 			n, err := s.Read(ba[:])
 			if err != nil {
 				if err == io.EOF {
@@ -135,7 +135,7 @@ func PlainAuth(password string) func(string, io.ReadWriter) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			fmt.Printf("WRITE3\n")
+			log.Printf("WRITE3\n")
 			s.Write(resp)
 		}
 	}
@@ -161,7 +161,7 @@ func NewClient(c io.ReadWriteCloser, user, aname string, opts ...Option) (*Clien
 
 	version := proto.TRVersion{
 		Header:  proto.Header{proto.Tversion, 0},
-		Msize:   100_000,
+		Msize:   65536,
 		Version: "9P2000",
 	}
 	res, err := client.getResponse(&version)
@@ -248,12 +248,10 @@ func (c *Client) getResponse(call proto.FCall) (proto.FCall, error) {
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Println("Waiting on Response Channel.")
 	r, ok := <-response
 	if !ok {
 		return nil, errors.New("RPC Error.")
 	}
-	//c.returnTag(r.GetTag())
 	return r, nil
 }
 
@@ -331,9 +329,7 @@ func (c *Client) walkFid(path string) (uint32, error) {
 		Nwname: uint16(len(parts)),
 		Wname:  parts,
 	}
-	//fmt.Println("Getting Walk Response.")
 	res, err := c.getResponse(&walk)
-	//fmt.Printf("TWalk Response: %#v, error: %#v\n", res, err)
 	if err != nil {
 		c.clunkFid(newfid)
 		return ^uint32(0), err
@@ -372,6 +368,12 @@ func (c *Client) cacheFid(path string) (uint32, error) {
 	return fid, nil
 }
 
+func (c *Client) dropCachedFid(path string) {
+	c.pathCacheLock.Lock()
+	defer c.pathCacheLock.Unlock()
+	delete(c.pathCache, path)
+}
+
 func (c *Client) clunkFid(fid uint32) {
 	//log.Printf("Clunk(%d)", fid)
 	//defer log.Println("Clunk() Return")
@@ -382,11 +384,11 @@ func (c *Client) clunkFid(fid uint32) {
 		Header: proto.Header{proto.Tclunk, c.takeTag()},
 		Fid:    fid,
 	}
-	//fmt.Println("Getting Clunk Response.")
+	//log.Println("Getting Clunk Response.")
 	go func() {
 		c.getResponse(&clunk) // TODO: do something with response and err?
 		//c.send(&clunk)
-		//fmt.Printf("TClunk Response: %#v, error %#v\n", response, err)
+		//log.Printf("TClunk Response: %#v, error %#v\n", response, err)
 		c.returnFid(fid)
 	}()
 }
@@ -396,24 +398,6 @@ func readAll(max uint32, r io.Reader) ([]byte, error) {
 	buff.Grow(int(max))
 	_, err := buff.ReadFrom(r)
 	return buff.Bytes(), err
-
-	//bs := make([]byte, 4096)
-	// 	for {
-	// 		//buff.Grow(4096)
-	// 		n, err := buff.ReadFrom(r)
-	// 		if err != nil {
-	// 			if err == io.EOF {
-	// 				fmt.Printf("GOT EOF\n")
-	// 				return buff.Bytes(), nil
-	// 			}
-	// 			fmt.Printf("GOT OTHER ERROR\n")
-	// 			return buff.Bytes(), err
-	// 		}
-	// 		if n == 0 {
-	// 			fmt.Printf("N == 0 BUT ERR == nil\n")
-	// 			return buff.Bytes(), nil
-	// 		}
-	// 	}
 }
 
 func (c *Client) Readdir(path string) ([]proto.Stat, error) {
@@ -435,11 +419,6 @@ func (c *Client) Readdir(path string) ([]proto.Stat, error) {
 func (c *Client) Stat(path string) (*proto.Stat, error) {
 	//log.Println("Stat()")
 	//defer log.Println("Stat() Return")
-	// 	newFid, err := c.walkFid(path)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	defer c.clunkFid(newFid)
 	newFid, err := c.cacheFid(path)
 	if err != nil {
 		return nil, err
@@ -466,11 +445,6 @@ func (c *Client) Stat(path string) (*proto.Stat, error) {
 func (c *Client) WStat(path string, stat *proto.Stat) error {
 	//log.Println("WStat()")
 	//defer log.Println("WStat() Return")
-	// 	newFid, err := c.walkFid(path)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	defer c.clunkFid(newFid)
 	newFid, err := c.cacheFid(path)
 	if err != nil {
 		return err
@@ -576,9 +550,9 @@ func (f *File) Close() error {
 func (f *File) Read(p []byte) (n int, err error) {
 	//log.Printf("Read(%d)", len(p))
 	//defer log.Printf("Read() Return (%d, %v)", n, err)
-	// 	if len(p) > 4096 {
-	// 		p = p[:4096]
-	// 	}
+	if len(p) > int(f.client.msize-11) {
+		p = p[:f.client.msize-11]
+	}
 	read := proto.TRead{
 		Header: proto.Header{proto.Tread, f.client.takeTag()},
 		Fid:    f.fid,
@@ -613,9 +587,9 @@ func (f *File) Read(p []byte) (n int, err error) {
 }
 
 func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
-	// 	if len(b) > 4096 {
-	// 		b = b[:4096]
-	// 	}
+	if len(b) > int(f.client.msize-11) {
+		b = b[:f.client.msize-11]
+	}
 	read := proto.TRead{
 		Header: proto.Header{proto.Tread, f.client.takeTag()},
 		Fid:    f.fid,
@@ -627,7 +601,6 @@ func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 		return 0, err
 	}
 	if rerror, ok := res.(*proto.RError); ok {
-		//c.clunkFid(newFid)
 		return 0, errors.New(rerror.Ename)
 	}
 	rresp, ok := res.(*proto.RRead)
@@ -649,64 +622,52 @@ func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 func (f *File) Write(p []byte) (n int, err error) {
 	//log.Println("Write()")
 	//defer log.Println("Write() Return")
-	n = len(p)
-	write := proto.TWrite{
-		Header: proto.Header{proto.Twrite, f.client.takeTag()},
-		Fid:    f.fid,
-		Offset: f.offset,
-		Count:  uint32(n),
-		Data:   p,
-	}
-	res, err := f.client.getResponse(&write)
-	if err != nil {
-		//c.clunkFid(newFid)
-		return 0, err
-	}
-	if rerror, ok := res.(*proto.RError); ok {
-		//c.clunkFid(newFid)
-		return 0, errors.New(rerror.Ename)
-	}
-	_, ok := res.(*proto.RWrite)
-	if !ok {
-		//c.clunkFid(newFid)
-		return 0, errors.New("Unexpected response to TWrite.")
-	}
+	n, err = f.twrite(p, f.offset)
 	f.offset += uint64(n)
-	return n, nil
+	return n, err
 }
 
 func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
 	//log.Println("WriteAt()")
 	//defer log.Println("WriteAt() Return")
-	n = len(b)
-	write := proto.TWrite{
-		Header: proto.Header{proto.Twrite, f.client.takeTag()},
-		Fid:    f.fid,
-		Offset: uint64(off),
-		Count:  uint32(n),
-		Data:   b,
+	return f.twrite(b, uint64(off))
+}
+
+func (f *File) twrite(p []byte, off uint64) (n int, err error) {
+	wrote := 0
+	for len(p) > 0 {
+		b := p
+		if len(b) > int(f.client.msize-23) {
+			b = b[:f.client.msize-23]
+		}
+		write := proto.TWrite{
+			Header: proto.Header{proto.Twrite, f.client.takeTag()},
+			Fid:    f.fid,
+			Offset: uint64(off),
+			Count:  uint32(len(b)),
+			Data:   b,
+		}
+		res, err := f.client.getResponse(&write)
+		if err != nil {
+			return wrote, err
+		}
+		if rerror, ok := res.(*proto.RError); ok {
+			return wrote, errors.New(rerror.Ename)
+		}
+		r, ok := res.(*proto.RWrite)
+		if !ok {
+			return wrote, errors.New("Unexpected response to TWrite.")
+		}
+		wrote += int(r.Count)
+		p = p[r.Count:]
 	}
-	res, err := f.client.getResponse(&write)
-	if err != nil {
-		//c.clunkFid(newFid)
-		return 0, err
-	}
-	if rerror, ok := res.(*proto.RError); ok {
-		//c.clunkFid(newFid)
-		return 0, errors.New(rerror.Ename)
-	}
-	_, ok := res.(*proto.RWrite)
-	if !ok {
-		//c.clunkFid(newFid)
-		return 0, errors.New("Unexpected response to TWrite.")
-	}
-	f.offset += uint64(n)
-	return n, nil
+	return wrote, nil
 }
 
 func (c *Client) Remove(path string) error {
 	//log.Printf("Remove(%s)\n", path)
 	//defer log.Println("Remove() Return")
+	defer c.dropCachedFid(path)
 	newFid, err := c.walkFid(path)
 	if err != nil {
 		return err

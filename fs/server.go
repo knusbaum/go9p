@@ -519,28 +519,28 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 		// The server needs to accept ALL the changes or none of them.
 		if len(newstat.Name) != 0 {
 			if relation != ugo_user {
-				fmt.Println("Can't change name. Not owner.")
+				log.Println("Can't change name. Not owner.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
 		if newstat.Length != math.MaxUint64 && newstat.Length != stat.Length {
 			if !openPermission(info.n, info.uname, proto.Owrite) {
-				//fmt.Printf("Can't alter length. Don't have write permission. OLD: %d, NEW: %d\n", stat.Length, newstat.Length)
+				log.Printf("Can't alter length. Don't have write permission. OLD: %d, NEW: %d\n", stat.Length, newstat.Length)
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
 		if newstat.Mode != math.MaxUint32 && newstat.Mode != stat.Mode {
 			if relation != ugo_user {
-				//fmt.Printf("Can't alter mode. Not owner. OLD: %#o, NEW: %#o\n", stat.Mode, newstat.Mode)
+				log.Printf("Can't alter mode. Not owner. OLD: %#o, NEW: %#o\n", stat.Mode, newstat.Mode)
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
 		if newstat.Mtime != math.MaxUint32 && newstat.Mtime != stat.Mtime {
 			if relation != ugo_user {
-				fmt.Println("Can't alter mtime. Not owner.")
+				log.Println("Can't alter mtime. Not owner.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
@@ -548,8 +548,7 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 		if len(newstat.Gid) != 0 {
 			if info.n.Stat().Uid != info.uname ||
 				!userInGroup(info.uname, newstat.Gid) {
-				//fmt.Printf("uname: %s, gid: %s\n", c.uname, newstat.Gid)
-				fmt.Println("Can't changegroup. Not owner or not member of new group.")
+				log.Println("Can't changegroup. Not owner or not member of new group.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}

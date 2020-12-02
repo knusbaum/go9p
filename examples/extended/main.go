@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
@@ -56,5 +56,5 @@ func main() {
 		},
 	})
 
-	fmt.Println(go9p.Serve("0.0.0.0:9999", extendedFS.Server()))
+	log.Println(go9p.Serve("0.0.0.0:9999", extendedFS.Server()))
 }

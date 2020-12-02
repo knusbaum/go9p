@@ -5,6 +5,7 @@ package go9p
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -78,7 +79,7 @@ func postfd(name string) (readWriteCloser, *os.File, error) {
 	go func() {
 		err := mux9p.Listen("unix", name, f2, nil)
 		if err != nil {
-			fmt.Printf("Error: %v", err)
+			log.Printf("Error: %v", err)
 		}
 		f2.Close()
 	}()

@@ -17,6 +17,8 @@ func main() {
 	address := flag.String("address", "localhost:9000", "The address on which to listed for incoming 9p connections")
 	srv := flag.String("srv", "", "If specified, exportfs will listen on a unix socket with this service name in the current namespace (see p9p namespace(1)) rather than listening on tcp")
 	verbose := flag.Bool("v", false, "Makes the 9p protocol verbose, printing all incoming and outgoing messages.")
+	stdio := flag.Bool("s", false, "Serve 9p over standard in and standard out.")
+	noperm := flag.Bool("noperm", false, "Ignore permissions enforcement. Any attached user will have the same filesystem permissions as the user running export9p.")
 	flag.Parse()
 
 	if flag.NArg() > 0 {
@@ -38,7 +40,15 @@ func main() {
 	fs.WithCreateFile(CreateRealFile)(&exportFS)
 	fs.WithCreateDir(CreateRealDir)(&exportFS)
 	fs.WithRemoveFile(RemoveReal)(&exportFS)
-	if *srv != "" {
+	if *noperm {
+		fs.IgnorePermissions()(&exportFS)
+	}
+	if *stdio {
+		if *verbose {
+			log.Printf("Serving %s on standard input/output", dir)
+		}
+		err = go9p.ServeReadWriter(os.Stdin, os.Stdout, exportFS.Server())
+	} else if *srv != "" {
 		if *verbose {
 			log.Printf("Serving %s as service %s", dir, *srv)
 		}

@@ -168,12 +168,13 @@ func (f *BaseFile) Close(fid uint64) error {
 // instances of Dir can have children. Instances of File can only be leaves of
 // the tree.
 type FS struct {
-	Root       Dir
-	CreateFile func(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (File, error)
-	CreateDir  func(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (Dir, error)
-	WalkFail   func(fs *FS, parent Dir, name string) (FSNode, error)
-	RemoveFile func(fs *FS, f FSNode) error
-	uid        uint64 // uid for generating Qids.
+	Root        Dir
+	CreateFile  func(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (File, error)
+	CreateDir   func(fs *FS, parent Dir, user, name string, perm uint32, mode uint8) (Dir, error)
+	WalkFail    func(fs *FS, parent Dir, name string) (FSNode, error)
+	RemoveFile  func(fs *FS, f FSNode) error
+	uid         uint64 // uid for generating Qids.
+	ignorePerms bool   // When true, the server will ignore user/group permissions
 	// doAuth bool
 	authFunc func(s io.ReadWriter) (string, error)
 	sync.RWMutex
@@ -294,6 +295,15 @@ func WithWalkFailHandler(f func(fs *FS, parent Dir, name string) (FSNode, error)
 func WithAuth(authFunc func(s io.ReadWriter) (string, error)) Option {
 	return func(fs *FS) {
 		fs.authFunc = authFunc
+	}
+}
+
+// IgnorePermissions configures the server to not enforce user/group permissions bits. This is
+// useful, for instance, when permissions need to be enforced at a higher level, or by an
+// underlying file system that is being exported by the server.
+func IgnorePermissions() Option {
+	return func(fs *FS) {
+		fs.ignorePerms = true
 	}
 }
 

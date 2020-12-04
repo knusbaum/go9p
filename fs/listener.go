@@ -27,10 +27,10 @@ type fileConn struct {
 	fid    uint64
 	closed bool
 
-	outReader io.ReadCloser
-	outWriter io.WriteCloser
-	inReader  io.ReadCloser
-	inWriter  io.WriteCloser
+	outReader *io.PipeReader
+	outWriter *io.PipeWriter
+	inReader  *io.PipeReader
+	inWriter  *io.PipeWriter
 
 	m sync.Mutex
 }
@@ -148,10 +148,10 @@ func (c *fileConn) Close() error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.closed = true
-	c.inReader.Close()
-	c.inWriter.Close()
-	c.outReader.Close()
-	c.outWriter.Close()
+	c.inReader.CloseWithError(io.EOF)
+	c.outWriter.CloseWithError(io.EOF)
+	c.inWriter.CloseWithError(io.EOF)
+	c.outReader.CloseWithError(io.EOF)
 	return nil
 }
 
@@ -196,11 +196,20 @@ func (c *fileConn) handleWrite(data []byte) (uint32, error) {
 }
 
 func (c *fileConn) Read(p []byte) (int, error) {
-	return c.inReader.Read(p)
+	//return c.inReader.Read(p)
+	n, err := c.inReader.Read(p)
+	if err == io.ErrClosedPipe {
+		err = io.EOF
+	}
+	return n, err
 }
 
 func (c *fileConn) Write(p []byte) (int, error) {
-	return c.outWriter.Write(p)
+	n, err := c.outWriter.Write(p)
+	if err == io.ErrClosedPipe {
+		err = io.EOF
+	}
+	return n, err
 }
 
 func (a *addr9p) Network() string {

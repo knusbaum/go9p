@@ -229,7 +229,7 @@ func (s *server) Walk(gc go9p.Conn, t *proto.TWalk) (proto.FCall, error) {
 	return &proto.RWalk{proto.Header{proto.Rwalk, t.Tag}, uint16(len(qids)), qids}, nil
 }
 
-func (_ *server) Open(gc go9p.Conn, t *proto.TOpen) (proto.FCall, error) {
+func (s *server) Open(gc go9p.Conn, t *proto.TOpen) (proto.FCall, error) {
 	c := gc.(*conn)
 	//info, ok := c.fids[t.Fid]
 	i, ok := c.fids.Load(t.Fid)
@@ -240,7 +240,7 @@ func (_ *server) Open(gc go9p.Conn, t *proto.TOpen) (proto.FCall, error) {
 	if info.openMode != proto.None {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Fid already open."}, nil
 	}
-	if !openPermission(info.n, info.uname, t.Mode&0x0F) {
+	if !s.fs.ignorePerms && !openPermission(info.n, info.uname, t.Mode&0x0F) {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 	}
 
@@ -275,7 +275,7 @@ func (s *server) Create(gc go9p.Conn, t *proto.TCreate) (proto.FCall, error) {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Bad Fid."}, nil
 	}
 	info := i.(*fidInfo)
-	if !openPermission(info.n, info.uname, proto.Owrite) {
+	if !s.fs.ignorePerms && !openPermission(info.n, info.uname, proto.Owrite) {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 	}
 
@@ -439,7 +439,7 @@ func (s *server) Remove(gc go9p.Conn, t *proto.TRemove) (proto.FCall, error) {
 	}
 	info := i.(*fidInfo)
 
-	if !openPermission(info.n, info.uname, proto.Owrite) {
+	if !s.fs.ignorePerms && !openPermission(info.n, info.uname, proto.Owrite) {
 		return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 	}
 
@@ -502,7 +502,7 @@ func (_ *server) Stat(gc go9p.Conn, t *proto.TStat) (proto.FCall, error) {
  * message is returned. (Con- sider the message to mean,
  * ``make the state of the file exactly what it claims to be.'')
  */
-func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
+func (s *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 	c := gc.(*conn)
 	i, ok := c.fids.Load(t.Fid)
 	if !ok {
@@ -518,36 +518,36 @@ func (_ *server) Wstat(gc go9p.Conn, t *proto.TWstat) (proto.FCall, error) {
 		// Need to check all this stuff before we change *ANYTHING*
 		// The server needs to accept ALL the changes or none of them.
 		if len(newstat.Name) != 0 {
-			if relation != ugo_user {
+			if !s.fs.ignorePerms && relation != ugo_user {
 				log.Println("Can't change name. Not owner.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
 		if newstat.Length != math.MaxUint64 && newstat.Length != stat.Length {
-			if !openPermission(info.n, info.uname, proto.Owrite) {
+			if !s.fs.ignorePerms && !openPermission(info.n, info.uname, proto.Owrite) {
 				log.Printf("Can't alter length. Don't have write permission. OLD: %d, NEW: %d\n", stat.Length, newstat.Length)
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
 		if newstat.Mode != math.MaxUint32 && newstat.Mode != stat.Mode {
-			if relation != ugo_user {
+			if !s.fs.ignorePerms && relation != ugo_user {
 				log.Printf("Can't alter mode. Not owner. OLD: %#o, NEW: %#o\n", stat.Mode, newstat.Mode)
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
 		if newstat.Mtime != math.MaxUint32 && newstat.Mtime != stat.Mtime {
-			if relation != ugo_user {
+			if !s.fs.ignorePerms && relation != ugo_user {
 				log.Println("Can't alter mtime. Not owner.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}
 		}
 
 		if len(newstat.Gid) != 0 {
-			if info.n.Stat().Uid != info.uname ||
-				!userInGroup(info.uname, newstat.Gid) {
+			if !s.fs.ignorePerms && (info.n.Stat().Uid != info.uname ||
+				!userInGroup(info.uname, newstat.Gid)) {
 				log.Println("Can't changegroup. Not owner or not member of new group.")
 				return &proto.RError{proto.Header{proto.Rerror, t.Tag}, "Permission denied."}, nil
 			}

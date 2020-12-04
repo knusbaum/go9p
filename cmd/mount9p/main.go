@@ -18,6 +18,7 @@ import (
 
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
+	"github.com/knusbaum/go9p"
 	"github.com/knusbaum/go9p/client"
 	"github.com/knusbaum/go9p/proto"
 )
@@ -367,7 +368,7 @@ func (f *FileNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 		return nil, 0, syscall.ENOENT
 	}
 	if stat.Length == 0 {
-		log.Printf("UNSEEKABLE STREAM")
+		log.Printf("OPENING %s AS UNSEEKABLE STREAM", f.path)
 		return &File{file, f}, fuse.FOPEN_DIRECT_IO, 0
 	}
 
@@ -521,6 +522,24 @@ func (f *File) Write(ctx context.Context, data []byte, off int64) (uint32, sysca
 	return uint32(n), 0
 }
 
+type ReadWriteCloser struct {
+	io.ReadCloser
+	io.WriteCloser
+}
+
+func (r *ReadWriteCloser) Close() error {
+	err1 := r.ReadCloser.Close()
+	err2 := r.WriteCloser.Close()
+	if err1 != nil && err2 != nil {
+		return fmt.Errorf("Read and Write failed to close: [Read: %s], [Write: %s]", err1, err2)
+	} else if err1 != nil {
+		return fmt.Errorf("Read failed to close: %s", err1)
+	} else if err2 != nil {
+		return fmt.Errorf("Write failed to close: %s", err2)
+	}
+	return nil
+}
+
 func main() {
 	var defaultUser string
 	u, err := user.Current()
@@ -532,29 +551,44 @@ func main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-		fmt.Fprintf(flag.CommandLine.Output(), "  mount9p [options] address mountpoint\nOptions:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  mount9p [options] address mountpoint\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  mount9p [options] -s mountpoint\nOptions:\n")
 		flag.PrintDefaults()
 	}
-	debug := flag.Bool("debug", false, "print debug data")
-	username := flag.String("user", defaultUser, "user to log in as")
-	aname := flag.String("aname", "", "specific file system to attach to, if any")
-	auth := flag.Bool("a", false, "enable plan9 auth")
+	debug := flag.Bool("debug", false, "Prints FUSE debugging information.")
+	verbose := flag.Bool("v", false, "Makes the 9p protocol verbose, printing all incoming and outgoing messages.")
+	username := flag.String("user", defaultUser, "User to log in as")
+	aname := flag.String("aname", "", "Specific file system to attach to, if any")
+	auth := flag.Bool("a", false, "Enable plan9 auth")
+	stdio := flag.Bool("s", false, "Speak 9p over standard input/output")
 	flag.Parse()
-	if len(flag.Args()) < 2 {
-		flag.Usage()
-		os.Exit(1)
-	}
+	var s io.ReadWriteCloser
+	var mountpoint string
+	if *stdio {
+		if len(flag.Args()) < 1 {
+			flag.Usage()
+			os.Exit(1)
+		}
+		s = &ReadWriteCloser{os.Stdin, os.Stdout}
+		mountpoint = flag.Arg(0)
+	} else {
+		if len(flag.Args()) < 2 {
+			flag.Usage()
+			os.Exit(1)
+		}
 
-	addr := flag.Arg(0)
-	s, err := net.Dial("tcp", addr)
-	if err != nil {
-		log.Fatal(err)
+		addr := flag.Arg(0)
+		s, err = net.Dial("tcp", addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		mountpoint = flag.Arg(1)
 	}
 	var clientOpts []client.Option
 	if *auth {
 		clientOpts = append(clientOpts, client.WithAuth(client.Plan9Auth))
 	}
-
+	go9p.Verbose = *verbose
 	c, err := client.NewClient(s, *username, *aname, clientOpts...)
 	if err != nil {
 		log.Fatal(err)
@@ -564,7 +598,7 @@ func main() {
 	opts.Debug = *debug
 	root := &Dir{client: c, path: "/"}
 	dirPut("/", root)
-	server, err := fs.Mount(flag.Arg(1), root, opts)
+	server, err := fs.Mount(mountpoint, root, opts)
 	if err != nil {
 		log.Fatalf("Mount fail: %v\n", err)
 	}

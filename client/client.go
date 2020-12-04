@@ -14,8 +14,15 @@ import (
 
 	"github.com/Plan9-Archive/libauth"
 	"github.com/emersion/go-sasl"
+	"github.com/knusbaum/go9p"
 	"github.com/knusbaum/go9p/proto"
 )
+
+func verboseLog(msg string, args ...interface{}) {
+	if go9p.Verbose {
+		log.Printf(msg, args...)
+	}
+}
 
 const _NOFID = ^uint32(0)
 
@@ -69,7 +76,7 @@ func (c *Client) worker() {
 			return
 		}
 		tag := call.GetTag()
-		//log.Printf("=in=> %v\n", call)
+		verboseLog("=in=> %v\n", call)
 		c.Lock()
 		rchan := c.calls[tag]
 		c.Unlock()
@@ -242,7 +249,7 @@ func (c *Client) getResponse(call proto.FCall) (proto.FCall, error) {
 	response := make(chan proto.FCall)
 	c.Lock()
 	c.calls[call.GetTag()] = response
-	//log.Printf("<=out= %v\n", call)
+	verboseLog("<=out= %v\n", call)
 	_, err := c.c.Write(call.Compose())
 	c.Unlock()
 	if err != nil {
@@ -258,7 +265,7 @@ func (c *Client) getResponse(call proto.FCall) (proto.FCall, error) {
 func (c *Client) send(call proto.FCall) error {
 	c.Lock()
 	defer c.Unlock()
-	//log.Printf("<=out= %v\n", call)
+	verboseLog("<=out= %v\n", call)
 	_, err := c.c.Write(call.Compose())
 	return err
 }

@@ -95,6 +95,7 @@ func (r *Dir) Rename(ctx context.Context, name string, newParent fs.InodeEmbedde
 		return syscall.ENOENT
 	}
 	r.dirTTL = time.Time{}
+	r.statTTL = time.Time{}
 	return 0
 }
 
@@ -105,6 +106,7 @@ func (r *Dir) Unlink(ctx context.Context, name string) syscall.Errno {
 		return syscall.EINVAL
 	}
 	r.dirTTL = time.Time{}
+	r.statTTL = time.Time{}
 	return 0
 }
 
@@ -115,6 +117,7 @@ func (r *Dir) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return syscall.EINVAL
 	}
 	r.dirTTL = time.Time{}
+	r.statTTL = time.Time{}
 	return 0
 }
 
@@ -128,6 +131,7 @@ func (r *Dir) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.Ent
 	}
 	defer file.Close()
 	r.dirTTL = time.Time{}
+	r.statTTL = time.Time{}
 	r.dirCache = append(r.dirCache, proto.Stat{
 		Type:   0,
 		Dev:    0,
@@ -190,7 +194,7 @@ func (r *Dir) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) s
 }
 
 func (r *Dir) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
-	//log.Printf("(*Dir).SetAttr(%s)")
+	log.Printf("(*Dir).SetAttr(%s)")
 	stat := proto.Stat{
 		Type:   math.MaxUint16,
 		Dev:    math.MaxUint32,
@@ -223,6 +227,10 @@ func (r *Dir) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAttrIn, 
 	out.Mode = stat.Mode
 	out.Size = stat.Length
 	out.Mtime = uint64(stat.Mtime)
+	if dir := dirGet(path.Dir(r.path)); dir != nil {
+		dir.dirTTL = time.Time{}
+		dir.statTTL = time.Time{}
+	}
 	return 0
 }
 
@@ -234,7 +242,7 @@ func (r *Dir) Create(ctx context.Context, name string, flags uint32, mode uint32
 		return nil, nil, 0, syscall.EINVAL
 	}
 	r.dirTTL = time.Time{}
-	//r.statTTL = time.Time{}
+	r.statTTL = time.Time{}
 	r.dirCache = append(r.dirCache, proto.Stat{
 		Type:   0,
 		Dev:    0,
@@ -462,6 +470,10 @@ func (f *FileNode) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAtt
 	out.Mode = stat.Mode
 	out.Size = stat.Length
 	out.Mtime = uint64(stat.Mtime)
+	if dir := dirGet(path.Dir(f.path)); dir != nil {
+		dir.dirTTL = time.Time{}
+		dir.statTTL = time.Time{}
+	}
 	return 0
 }
 
@@ -510,6 +522,10 @@ func (f *File) Setattr(ctx context.Context, in *fuse.SetAttrIn, out *fuse.AttrOu
 	out.Mode = stat.Mode
 	out.Size = stat.Length
 	out.Mtime = uint64(stat.Mtime)
+	if dir := dirGet(path.Dir(f.node.path)); dir != nil {
+		dir.dirTTL = time.Time{}
+		dir.statTTL = time.Time{}
+	}
 	return 0
 }
 
@@ -518,6 +534,10 @@ func (f *File) Write(ctx context.Context, data []byte, off int64) (uint32, sysca
 	if err != nil {
 		//log.Printf("Error writing file: %s", err)
 		return uint32(n), syscall.EINVAL
+	}
+	if dir := dirGet(path.Dir(f.node.path)); dir != nil {
+		dir.dirTTL = time.Time{}
+		dir.statTTL = time.Time{}
 	}
 	return uint32(n), 0
 }

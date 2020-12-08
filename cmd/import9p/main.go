@@ -14,7 +14,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Makes the 9p protocol verbose, printing all incoming and outgoing messages.")
 	sshPort := flag.Int("p", 22, "The SSH Port to connect to")
 	exportPath := flag.String("export-path", "", "The path to the export9p binary on the remote system.")
-	loginShell := flag.Bool("login", false, "Causes ssh to try to execute a login shell. This is useful for loading the users profile and environment (namely the PATH variable). Works when the user's shell is sh, bash, or zsh.")
+	loginShell := flag.Bool("login", false, "Causes ssh to try to execute a login shell. This is useful for loading the user's profile and environment (namely the PATH variable). This works when the user's shell is bash, or zsh.")
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
 		fmt.Fprintf(flag.CommandLine.Output(), "  %s [options] user@address:path localmountpoint\nOptions:\n", os.Args[0])

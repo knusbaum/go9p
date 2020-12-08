@@ -21,6 +21,8 @@ import (
 	"github.com/knusbaum/go9p"
 	"github.com/knusbaum/go9p/client"
 	"github.com/knusbaum/go9p/proto"
+
+	fans "9fans.net/go/plan9/client"
 )
 
 var crc64Table = crc64.MakeTable(0xC96C5795D7870F42)
@@ -376,7 +378,6 @@ func (f *FileNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 		return nil, 0, syscall.ENOENT
 	}
 	if stat.Length == 0 {
-		log.Printf("OPENING %s AS UNSEEKABLE STREAM", f.path)
 		return &File{file, f}, fuse.FOPEN_DIRECT_IO, 0
 	}
 
@@ -388,15 +389,6 @@ func (f *FileNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 }
 
 func (f *FileNode) oldGetattr(ctx context.Context, h fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	// 	if f.statCache == nil || time.Now().After(f.ttl) {
-	// 		stat, err := f.client.Stat(f.path)
-	// 		if err != nil {
-	// 			log.Printf("STAT RETURNED ERROR: %s\n", err)
-	// 			return syscall.ENOENT
-	// 		}
-	// 		f.statCache = stat
-	// 		f.ttl = time.Now().Add(DefaultTTL)
-	// 	}
 	//log.Printf("FileNode.oldGetattr(%s)", f.path)
 	stat, err := f.client.Stat(f.path)
 	if err != nil {
@@ -571,8 +563,9 @@ func main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-		fmt.Fprintf(flag.CommandLine.Output(), "  mount9p [options] address mountpoint\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "  mount9p [options] -s mountpoint\nOptions:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %s [options] address mountpoint\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "  %s [options] -srv local_service mountpoint\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "  %s [options] -s mountpoint\nOptions:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	debug := flag.Bool("debug", false, "Prints FUSE debugging information.")
@@ -581,6 +574,7 @@ func main() {
 	aname := flag.String("aname", "", "Specific file system to attach to, if any")
 	auth := flag.Bool("a", false, "Enable plan9 auth")
 	stdio := flag.Bool("s", false, "Speak 9p over standard input/output")
+	srv := flag.Bool("srv", false, "Attach to a 9p service, not an address")
 	flag.Parse()
 	var s io.ReadWriteCloser
 	var mountpoint string
@@ -596,9 +590,18 @@ func main() {
 			flag.Usage()
 			os.Exit(1)
 		}
-
+		network := "tcp"
 		addr := flag.Arg(0)
-		s, err = net.Dial("tcp", addr)
+		if _, err := os.Stat(addr); err == nil {
+			// Probably a unix socket.
+			network = "unix"
+		}
+		if *srv {
+			network = "unix"
+			ns := fans.Namespace()
+			addr = path.Join(ns, addr)
+		}
+		s, err = net.Dial(network, addr)
 		if err != nil {
 			log.Fatal(err)
 		}

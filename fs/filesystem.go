@@ -17,6 +17,7 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -88,6 +89,35 @@ func FullPath(f FSNode) string {
 	}
 	fp := FullPath(parent)
 	return strings.Replace(fp+"/"+f.Stat().Name, "//", "/", -1)
+}
+
+// BaseNode provides a basic FSNode. It is intended to be embedded in other structures implementing
+// either the File or Dir interfaces.
+type BaseNode struct {
+	FStat   proto.Stat
+	FParent Dir
+}
+
+func (n *BaseNode) Stat() proto.Stat {
+	return n.FStat
+}
+
+func (n *BaseNode) WriteStat(s *proto.Stat) error {
+	return errors.New("Attributes are read only")
+}
+
+func (n *BaseNode) SetParent(d Dir) {
+}
+
+func (n *BaseNode) Parent() Dir {
+	return n.FParent
+}
+
+func NewBaseNode(fs *FS, parent Dir, name, uid, gid string, mode uint32) BaseNode {
+	return BaseNode{
+		FStat:   *fs.NewStat(name, uid, gid, mode),
+		FParent: parent,
+	}
 }
 
 // BaseFile provides a simple File implementation that other implementations

@@ -45,6 +45,7 @@ type File struct {
 	fid    uint32
 	client *Client
 	offset uint64
+	iounit uint32
 }
 
 type Config struct {
@@ -534,7 +535,7 @@ func (c *Client) Open(path string, mode proto.Mode) (*File, error) {
 		c.clunkFid(newFid)
 		return nil, errors.New(rerror.Ename)
 	}
-	_, ok := res.(*proto.ROpen)
+	ro, ok := res.(*proto.ROpen)
 	if !ok {
 		c.clunkFid(newFid)
 		return nil, errors.New("Unexpected response to TOpen.")
@@ -544,6 +545,7 @@ func (c *Client) Open(path string, mode proto.Mode) (*File, error) {
 		fid:    newFid,
 		client: c,
 		offset: 0,
+		iounit: ro.Iounit,
 	}, nil
 }
 
@@ -559,6 +561,9 @@ func (f *File) Read(p []byte) (n int, err error) {
 	//defer log.Printf("Read() Return (%d, %v)", n, err)
 	if len(p) > int(f.client.msize-11) {
 		p = p[:f.client.msize-11]
+	}
+	if len(p) > int(f.iounit) {
+		p = p[:f.iounit]
 	}
 	read := proto.TRead{
 		Header: proto.Header{proto.Tread, f.client.takeTag()},
@@ -596,6 +601,9 @@ func (f *File) Read(p []byte) (n int, err error) {
 func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 	if len(b) > int(f.client.msize-11) {
 		b = b[:f.client.msize-11]
+	}
+	if len(p) > int(f.iounit) {
+		p = p[:f.iounit]
 	}
 	read := proto.TRead{
 		Header: proto.Header{proto.Tread, f.client.takeTag()},
@@ -646,6 +654,9 @@ func (f *File) twrite(p []byte, off uint64) (n int, err error) {
 		b := p
 		if len(b) > int(f.client.msize-23) {
 			b = b[:f.client.msize-23]
+		}
+		if len(b) > int(f.iounit) {
+			b = b[:f.iounit]
 		}
 		write := proto.TWrite{
 			Header: proto.Header{proto.Twrite, f.client.takeTag()},

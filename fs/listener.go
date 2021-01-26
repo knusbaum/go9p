@@ -81,7 +81,7 @@ func (f *ListenFile) Open(fid uint64, omode proto.Mode) error {
 }
 
 func (f *ListenFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
-	log.Printf("READ [%d]", fid)
+	//log.Printf("READ [%d]", fid)
 	conn := f.connForFid(fid)
 	if conn == nil {
 		return nil, fmt.Errorf("Bad FID")

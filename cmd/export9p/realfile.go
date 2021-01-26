@@ -32,19 +32,6 @@ func (f *RealFile) SetParent(d fs.Dir) {
 	panic("THIS SHOULD NOT HAPPEN")
 }
 
-// func RealFileForPath(path string) (*RealFile, error) {
-// 	info, err := os.Stat(path)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("Failed to stat %s: %s", path, err)
-// 	}
-// 	user, group, err := getUserGroup(info)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	//f := &RealFile{BaseFile: *fs.NewBaseFile(exportFS.NewStat(info.Name(), user, group, uint32(info.Mode()))), Path: path, opens: make(map[uint64]*os.File)}
-// 	return nil, fmt.Errorf("TODO")
-// }
-
 func (f *RealFile) Stat() proto.Stat {
 	info, err := os.Stat(f.Path)
 	if err != nil {
@@ -121,7 +108,6 @@ func convertFlag(mode proto.Mode) int {
 	return m
 }
 
-// Open always succeeds.
 func (f *RealFile) Open(fid uint64, omode proto.Mode) error {
 	file, err := os.OpenFile(f.Path, convertFlag(omode), 0)
 	if err != nil {
@@ -131,7 +117,6 @@ func (f *RealFile) Open(fid uint64, omode proto.Mode) error {
 	return nil
 }
 
-// Read always returns an empty slice.
 func (f *RealFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
 	file := f.opens[fid]
 	bs := make([]byte, count)
@@ -145,14 +130,12 @@ func (f *RealFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error)
 	return nil, err
 }
 
-// Write always fails with an error.
 func (f *RealFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
 	file := f.opens[fid]
 	n, err := file.WriteAt(data, int64(offset))
 	return uint32(n), err
 }
 
-// Close always succeeds.
 func (f *RealFile) Close(fid uint64) error {
 	file := f.opens[fid]
 	delete(f.opens, fid)

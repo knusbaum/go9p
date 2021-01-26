@@ -57,6 +57,17 @@ type Dir struct {
 	dirTTL   time.Time
 }
 
+type StatDir struct {
+	Dir
+	Mode uint32
+}
+
+func (r *StatDir) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
+	e := r.Dir.Getattr(ctx, f, out)
+	out.Mode = r.Mode
+	return e
+}
+
 var _ = (fs.NodeLookuper)((*Dir)(nil))
 var _ = (fs.NodeReaddirer)((*Dir)(nil))
 var _ = (fs.NodeCreater)((*Dir)(nil))
@@ -284,7 +295,6 @@ func (r *Dir) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.
 			out.Mtime = uint64(stat.Mtime)
 			fullPath := path.Join(r.path, name)
 			if stat.Mode&proto.DMDIR > 0 {
-				//log.Printf("Making DIR for %s\n", path.Join(r.path, name))
 				if dir := dirGet(fullPath); dir != nil {
 					return r.NewInode(ctx, dir, fs.StableAttr{Mode: fuse.S_IFDIR, Ino: crc64.Checksum([]byte(fullPath), crc64Table)}), 0
 				}
@@ -324,8 +334,6 @@ type FileNode struct {
 	fs.Inode
 	client *client.Client
 	path   string
-	//statCache *proto.Stat
-	//ttl       time.Time
 }
 
 type File struct {
@@ -619,8 +627,8 @@ func main() {
 
 	opts := &fs.Options{UID: uint32(os.Geteuid()), GID: uint32(os.Getgid()), MountOptions: fuse.MountOptions{DirectMount: true, AllowOther: true}}
 	opts.Debug = *debug
-	root := &Dir{client: c, path: "/"}
-	dirPut("/", root)
+	root := &StatDir{Dir{client: c, path: "/"}, 0777}
+	//dirPut("/", root)
 	server, err := fs.Mount(mountpoint, root, opts)
 	if err != nil {
 		log.Fatalf("Mount fail: %v\n", err)

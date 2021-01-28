@@ -602,8 +602,8 @@ func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 	if len(b) > int(f.client.msize-11) {
 		b = b[:f.client.msize-11]
 	}
-	if len(p) > int(f.iounit) {
-		p = p[:f.iounit]
+	if len(b) > int(f.iounit) {
+		b = b[:f.iounit]
 	}
 	read := proto.TRead{
 		Header: proto.Header{proto.Tread, f.client.takeTag()},

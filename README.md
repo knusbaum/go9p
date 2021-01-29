@@ -21,6 +21,9 @@ This library has been tested on Plan 9 and Linux.
 Programs serving 9p2000 can be mounted on Unix with plan9port's 9pfuse (or some equivalent)
 https://github.com/9fans/plan9port
 
+This repository now also offers the [mount9p](cmd/mount9p) and [export9p](cmd/export9p) programs.
+mount9p replaces plan9port's 9pfuse and export9p will export part of a local namespace via 9p.
+
 For example, you would mount the ramfs example with the following command:
 ```
 9pfuse localhost:9999 /mnt/myramfs

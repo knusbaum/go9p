@@ -207,7 +207,7 @@ func (r *Dir) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) s
 }
 
 func (r *Dir) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
-	log.Printf("(*Dir).SetAttr(%s)")
+	log.Printf("(*Dir).SetAttr(%s)", r.path)
 	stat := proto.Stat{
 		Type:   math.MaxUint16,
 		Dev:    math.MaxUint32,

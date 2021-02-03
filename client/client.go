@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path"
 
@@ -541,11 +542,15 @@ func (c *Client) Open(path string, mode proto.Mode) (*File, error) {
 		return nil, errors.New("Unexpected response to TOpen.")
 	}
 	//c.clunkFid(newFid)
+	iounit := ro.Iounit
+	if iounit == 0 {
+		iounit = math.MaxUint32
+	}
 	return &File{
 		fid:    newFid,
 		client: c,
 		offset: 0,
-		iounit: ro.Iounit,
+		iounit: iounit,
 	}, nil
 }
 

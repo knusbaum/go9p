@@ -1,4 +1,4 @@
-package main
+package real
 
 import (
 	"fmt"
@@ -11,26 +11,26 @@ import (
 	"github.com/knusbaum/go9p/proto"
 )
 
-type RealDir struct {
+type Dir struct {
 	Path string
 }
 
-var _ fs.Dir = &RealDir{}
+var _ fs.Dir = &Dir{}
 
-func (f *RealDir) Parent() fs.Dir {
+func (f *Dir) Parent() fs.Dir {
 	if f.Path == "/" {
 		return nil
 	}
-	return &RealDir{path.Dir(f.Path)}
+	return &Dir{path.Dir(f.Path)}
 }
 
-func (f *RealDir) SetParent(d fs.Dir) {
+func (f *Dir) SetParent(d fs.Dir) {
 	panic("THIS SHOULD NOT HAPPEN")
 }
 
 var crc64Table = crc64.MakeTable(0xC96C5795D7870F42)
 
-func (f *RealDir) Stat() proto.Stat {
+func (f *Dir) Stat() proto.Stat {
 	info, err := os.Stat(f.Path)
 	if err != nil {
 		log.Printf("Failed to stat %s: %s", f.Path, err)
@@ -59,7 +59,7 @@ func (f *RealDir) Stat() proto.Stat {
 	}
 }
 
-func (f *RealDir) WriteStat(s *proto.Stat) error {
+func (f *Dir) WriteStat(s *proto.Stat) error {
 	current := f.Stat()
 	if s.Mode != current.Mode {
 		return os.Chmod(f.Path, os.FileMode(s.Mode))
@@ -88,7 +88,7 @@ func (f *RealDir) WriteStat(s *proto.Stat) error {
 	return nil
 }
 
-func (d *RealDir) Children() map[string]fs.FSNode {
+func (d *Dir) Children() map[string]fs.FSNode {
 	f, err := os.Open(d.Path)
 	defer f.Close()
 	if err != nil {
@@ -103,22 +103,22 @@ func (d *RealDir) Children() map[string]fs.FSNode {
 	m := make(map[string]fs.FSNode)
 	for i := range infos {
 		if infos[i].IsDir() {
-			m[infos[i].Name()] = &RealDir{Path: path.Join(d.Path, infos[i].Name())}
+			m[infos[i].Name()] = &Dir{Path: path.Join(d.Path, infos[i].Name())}
 		} else {
 			//m[infos[i].Name()] = &RealFile{BaseFile: *fs.NewBaseFile(exportFS.NewStat(infos[i].Name(), user, group, uint32(infos[i].Mode()))), Path: path.Join(d.Path, infos[i].Name()), opens: make(map[uint64]*os.File)}
-			m[infos[i].Name()] = NewRealFile(path.Join(d.Path, infos[i].Name()))
+			m[infos[i].Name()] = NewFile(path.Join(d.Path, infos[i].Name()))
 		}
 	}
 	return m
 }
 
-// CreateRealDir is a function meant to be passed to WithCreateDir.
+// CreateDir is a function meant to be passed to WithCreateDir.
 // It creates a real directory under the parent
-func CreateRealDir(filesystem *fs.FS, parent fs.Dir, user, name string, perm uint32, mode uint8) (fs.Dir, error) {
+func CreateDir(filesystem *fs.FS, parent fs.Dir, user, name string, perm uint32, mode uint8) (fs.Dir, error) {
 	fullPath := path.Join(fs.FullPath(parent), name)
 	err := os.Mkdir(fullPath, os.FileMode(perm))
 	if err != nil {
 		return nil, err
 	}
-	return &RealDir{fullPath}, nil
+	return &Dir{fullPath}, nil
 }

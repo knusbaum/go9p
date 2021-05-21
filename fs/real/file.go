@@ -1,4 +1,4 @@
-package main
+package real
 
 import (
 	"fmt"
@@ -12,27 +12,27 @@ import (
 	"github.com/knusbaum/go9p/proto"
 )
 
-type RealFile struct {
+type File struct {
 	Path  string
 	opens map[uint64]*os.File
 }
 
-func NewRealFile(path string) *RealFile {
-	return &RealFile{path, make(map[uint64]*os.File)}
+func NewFile(path string) *File {
+	return &File{path, make(map[uint64]*os.File)}
 }
 
-func (f *RealFile) Parent() fs.Dir {
+func (f *File) Parent() fs.Dir {
 	if f.Path == "/" {
 		return nil
 	}
-	return &RealDir{path.Dir(f.Path)}
+	return &Dir{path.Dir(f.Path)}
 }
 
-func (f *RealFile) SetParent(d fs.Dir) {
+func (f *File) SetParent(d fs.Dir) {
 	panic("THIS SHOULD NOT HAPPEN")
 }
 
-func (f *RealFile) Stat() proto.Stat {
+func (f *File) Stat() proto.Stat {
 	info, err := os.Stat(f.Path)
 	if err != nil {
 		log.Printf("Failed to stat %s: %s", f.Path, err)
@@ -61,7 +61,7 @@ func (f *RealFile) Stat() proto.Stat {
 	}
 }
 
-func (f *RealFile) WriteStat(s *proto.Stat) error {
+func (f *File) WriteStat(s *proto.Stat) error {
 	current := f.Stat()
 	if s.Mode != current.Mode {
 		return os.Chmod(f.Path, os.FileMode(s.Mode))
@@ -108,7 +108,7 @@ func convertFlag(mode proto.Mode) int {
 	return m
 }
 
-func (f *RealFile) Open(fid uint64, omode proto.Mode) error {
+func (f *File) Open(fid uint64, omode proto.Mode) error {
 	file, err := os.OpenFile(f.Path, convertFlag(omode), 0)
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func (f *RealFile) Open(fid uint64, omode proto.Mode) error {
 	return nil
 }
 
-func (f *RealFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
+func (f *File) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
 	file := f.opens[fid]
 	bs := make([]byte, count)
 	n, err := file.ReadAt(bs, int64(offset))
@@ -130,31 +130,31 @@ func (f *RealFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error)
 	return nil, err
 }
 
-func (f *RealFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
+func (f *File) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
 	file := f.opens[fid]
 	n, err := file.WriteAt(data, int64(offset))
 	return uint32(n), err
 }
 
-func (f *RealFile) Close(fid uint64) error {
+func (f *File) Close(fid uint64) error {
 	file := f.opens[fid]
 	delete(f.opens, fid)
 	return file.Close()
 }
 
-// CreateRealFile is a function meant to be passed to WithCreateFile.
+// CreateFile is a function meant to be passed to WithCreateFile.
 // It will add an empty StaticFile to the FS whenever a client attempts to
 // create a file.
-func CreateRealFile(filesystem *fs.FS, parent fs.Dir, user, name string, perm uint32, mode uint8) (fs.File, error) {
+func CreateFile(filesystem *fs.FS, parent fs.Dir, user, name string, perm uint32, mode uint8) (fs.File, error) {
 	fullPath := path.Join(fs.FullPath(parent), name)
 	f, err := os.OpenFile(fullPath, os.O_CREATE, os.FileMode(perm))
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return NewRealFile(fullPath), nil
+	return NewFile(fullPath), nil
 }
 
-func RemoveReal(filesystem *fs.FS, f fs.FSNode) error {
+func Remove(filesystem *fs.FS, f fs.FSNode) error {
 	return os.Remove(fs.FullPath(f))
 }

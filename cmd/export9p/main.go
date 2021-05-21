@@ -8,6 +8,7 @@ import (
 
 	"github.com/knusbaum/go9p"
 	"github.com/knusbaum/go9p/fs"
+	"github.com/knusbaum/go9p/fs/real"
 )
 
 var exportFS fs.FS
@@ -36,10 +37,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	exportFS.Root = &RealDir{Path: dir}
-	fs.WithCreateFile(CreateRealFile)(&exportFS)
-	fs.WithCreateDir(CreateRealDir)(&exportFS)
-	fs.WithRemoveFile(RemoveReal)(&exportFS)
+	exportFS.Root = &real.Dir{Path: dir}
+	fs.WithCreateFile(real.CreateFile)(&exportFS)
+	fs.WithCreateDir(real.CreateDir)(&exportFS)
+	fs.WithRemoveFile(real.Remove)(&exportFS)
 	if *noperm {
 		fs.IgnorePermissions()(&exportFS)
 	}

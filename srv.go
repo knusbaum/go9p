@@ -77,7 +77,7 @@ func postfd(name string) (readWriteCloser, *os.File, error) {
 
 	f1, f2 := newPipePair()
 	go func() {
-		err := mux9p.Listen("unix", name, f2, nil)
+		err := mux9p.Listen("unix", name, f2, &mux9p.Config{})
 		if err != nil {
 			log.Printf("Error: %v", err)
 		}

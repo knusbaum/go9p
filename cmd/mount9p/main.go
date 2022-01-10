@@ -379,6 +379,9 @@ func (f *FileNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 		//log.Printf("FUSE: Open(%s) -> Error: %s", f.path, err)
 		return nil, 0, syscall.EINVAL
 	}
+	if *dio {
+		return &File{file, f}, 0, 0
+	}
 	// TODO: Optimize
 	stat, err := f.client.Stat(f.path)
 	if err != nil {
@@ -559,6 +562,8 @@ func (r *ReadWriteCloser) Close() error {
 	}
 	return nil
 }
+
+var dio *bool = flag.Bool("dio", false, "Force the use of Direct IO - bypasses caching, read-ahead. Fixes 9p files with wrong reported lengths.")
 
 func main() {
 	var defaultUser string

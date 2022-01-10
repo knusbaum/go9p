@@ -604,6 +604,8 @@ func (f *File) Read(p []byte) (n int, err error) {
 }
 
 func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
+	//log.Printf("ReadAt(%d (len: %d))\n", off, len(b))
+	//defer func() { log.Printf("ReadAt -> %d, (err: %s)", n, err) }()
 	if len(b) > int(f.client.msize-11) {
 		b = b[:f.client.msize-11]
 	}

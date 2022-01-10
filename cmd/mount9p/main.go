@@ -380,7 +380,8 @@ func (f *FileNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 		return nil, 0, syscall.EINVAL
 	}
 	if *dio {
-		return &File{file, f}, 0, 0
+		
+		return &File{file, f}, fuse.FOPEN_DIRECT_IO, 0
 	}
 	// TODO: Optimize
 	stat, err := f.client.Stat(f.path)

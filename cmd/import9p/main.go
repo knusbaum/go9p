@@ -42,9 +42,9 @@ func main() {
 	if *loginShell {
 		args = []string{remoteParts[0], "-p", strconv.Itoa(*sshPort), "exec", "$SHELL", "--login", "-c"}
 		if *verbose {
-			args = append(args, fmt.Sprintf("'export9p -v -s -noperm -dir %s'", remoteParts[1]))
+			args = append(args, fmt.Sprintf("'%s -v -s -noperm -dir %s'", exportCommand, remoteParts[1]))
 		} else {
-			args = append(args, fmt.Sprintf("'export9p -s -noperm -dir %s'", remoteParts[1]))
+			args = append(args, fmt.Sprintf("'%s -s -noperm -dir %s'", exportCommand, remoteParts[1]))
 		}
 	}
 	sshProc := exec.Command("ssh", args...)

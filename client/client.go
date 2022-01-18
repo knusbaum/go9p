@@ -668,7 +668,7 @@ func (f *File) twrite(p []byte, off uint64) (n int, err error) {
 		write := proto.TWrite{
 			Header: proto.Header{proto.Twrite, f.client.takeTag()},
 			Fid:    f.fid,
-			Offset: uint64(off),
+			Offset: uint64(off) + uint64(wrote),
 			Count:  uint32(len(b)),
 			Data:   b,
 		}

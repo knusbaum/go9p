@@ -27,8 +27,8 @@ import (
 
 var crc64Table = crc64.MakeTable(0xC96C5795D7870F42)
 
-var DefaultTTL = 5 * time.Second
-var ncTTL = uint64(5)
+var DefaultTTL = 10 * time.Second
+var ncTTL = uint64(10)
 
 var dirCacheLock sync.RWMutex
 var dirCache map[string]*Dir = make(map[string]*Dir)
@@ -207,7 +207,7 @@ func (r *Dir) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) s
 }
 
 func (r *Dir) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
-	log.Printf("(*Dir).SetAttr(%s)", r.path)
+	//log.Printf("(*Dir).SetAttr(%s)", r.path)
 	stat := proto.Stat{
 		Type:   math.MaxUint16,
 		Dev:    math.MaxUint32,
@@ -380,7 +380,7 @@ func (f *FileNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 		return nil, 0, syscall.EINVAL
 	}
 	if *dio {
-		
+
 		return &File{file, f}, fuse.FOPEN_DIRECT_IO, 0
 	}
 	// TODO: Optimize
@@ -440,7 +440,7 @@ func (f *FileNode) Getattr(ctx context.Context, h fs.FileHandle, out *fuse.AttrO
 }
 
 func (f *FileNode) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
-	log.Printf("(*FileNode).SetAttr(%s)", f.path)
+	//log.Printf("(*FileNode).SetAttr(%s)", f.path)
 	stat := proto.Stat{
 		Type:   math.MaxUint16,
 		Dev:    math.MaxUint32,
@@ -510,7 +510,7 @@ func (f *File) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResul
 }
 
 func (f *File) Setattr(ctx context.Context, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
-	log.Printf("(*File).SetAttr(%s)", f.node.path)
+	//log.Printf("(*File).SetAttr(%s)", f.node.path)
 	stat, err := f.node.client.Stat(f.node.path)
 	if err != nil {
 		log.Printf("STAT RETURNED ERROR: %s\n", err)
@@ -534,6 +534,7 @@ func (f *File) Setattr(ctx context.Context, in *fuse.SetAttrIn, out *fuse.AttrOu
 }
 
 func (f *File) Write(ctx context.Context, data []byte, off int64) (uint32, syscall.Errno) {
+	//log.Printf("f.Write(data(%d), off: %d)", len(data), off)
 	n, err := f.file.WriteAt(data, off)
 	if err != nil {
 		//log.Printf("Error writing file: %s", err)

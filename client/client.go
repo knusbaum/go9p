@@ -216,6 +216,7 @@ func NewClient(c io.ReadWriteCloser, user, aname string, opts ...Option) (*Clien
 			fid:    afid,
 			client: client,
 			offset: 0,
+			iounit: math.MaxUint32,
 		}
 		defer f.Close() // Needs to be closed *after* attach, or it becomes invalid
 		conf.authFunc(user, f)
@@ -502,15 +503,20 @@ func (c *Client) Create(name string, perm os.FileMode) (*File, error) {
 		c.clunkFid(newFid)
 		return nil, errors.New(rerror.Ename)
 	}
-	_, ok := res.(*proto.RCreate)
+	rc, ok := res.(*proto.RCreate)
 	if !ok {
 		c.clunkFid(newFid)
 		return nil, errors.New("Unexpected response to TCreate.")
+	}
+	iounit := rc.Iounit
+	if iounit == 0 {
+		iounit = math.MaxUint32
 	}
 	return &File{
 		fid:    newFid,
 		client: c,
 		offset: 0,
+		iounit: iounit,
 	}, nil
 }
 
@@ -650,7 +656,7 @@ func (f *File) Write(p []byte) (n int, err error) {
 }
 
 func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
-	//log.Println("WriteAt()")
+	//log.Printf("WriteAt(b(%d), off: %d)", len(b), off)
 	//defer log.Println("WriteAt() Return")
 	return f.twrite(b, uint64(off))
 }
@@ -658,6 +664,7 @@ func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
 func (f *File) twrite(p []byte, off uint64) (n int, err error) {
 	wrote := 0
 	for len(p) > 0 {
+		//log.Printf("f.client.msize: %d, f.iounit: %d", f.client.msize, f.iounit)
 		b := p
 		if len(b) > int(f.client.msize-23) {
 			b = b[:f.client.msize-23]

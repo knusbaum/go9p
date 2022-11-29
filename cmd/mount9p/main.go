@@ -590,6 +590,7 @@ func main() {
 	auth := flag.Bool("a", false, "Enable plan9 auth")
 	stdio := flag.Bool("s", false, "Speak 9p over standard input/output")
 	srv := flag.Bool("srv", false, "Attach to a 9p service, not an address")
+	other := flag.Bool("other", false, "Enable the allow_other mount flag (See: mount.fuse(8))")
 	flag.Parse()
 	var s io.ReadWriteCloser
 	var mountpoint string
@@ -632,7 +633,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	opts := &fs.Options{UID: uint32(os.Geteuid()), GID: uint32(os.Getgid()), MountOptions: fuse.MountOptions{DirectMount: true, AllowOther: true}}
+	opts := &fs.Options{
+		UID: uint32(os.Geteuid()),
+		GID: uint32(os.Getgid()),
+		MountOptions: fuse.MountOptions{
+			DirectMount: true,
+			AllowOther: *other,
+		},
+	}
 	opts.Debug = *debug
 	root := &StatDir{Dir{client: c, path: "/"}, 0777}
 	//dirPut("/", root)

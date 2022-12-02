@@ -276,6 +276,10 @@ func (c *Client) send(call proto.FCall) error {
 func (c *Client) takeTag() uint16 {
 	c.Lock()
 	defer c.Unlock()
+	return c.lockedTakeTag()
+}
+
+func (c *Client) lockedTakeTag() uint16 {
 	if len(c.tags) == 0 {
 		c.lastTag++
 		return c.lastTag
@@ -560,9 +564,31 @@ func (c *Client) Open(path string, mode proto.Mode) (*File, error) {
 	}, nil
 }
 
+func (f *File) flushAll() error {
+	f.client.Lock()
+	defer f.client.Unlock()
+	for t, r := range f.client.calls {
+		flush := proto.TFlush{
+			Header: proto.Header{proto.Tflush, f.client.lockedTakeTag()},
+			Oldtag: t,
+		}
+		verboseLog("<=out= %v\n", proto.FCall(&flush))
+		_, err := f.client.c.Write(flush.Compose())
+		if err != nil {
+			return err
+		}
+		close(r) // Should we send an RError instead?
+		delete(f.client.calls, t)
+	}
+	return nil
+}
+
 func (f *File) Close() error {
 	//log.Println("Close()")
 	//defer log.Println("Close() Return")
+	if err := f.flushAll(); err != nil {
+		return err
+	}
 	f.client.clunkFid(f.fid)
 	return nil
 }

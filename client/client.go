@@ -35,6 +35,7 @@ type Client struct {
 	fids          []uint32
 	lastFid       uint32
 	calls         map[uint16]chan proto.FCall
+	tagFids       map[uint16]uint32
 	closed        bool
 	pathCacheLock sync.RWMutex
 	pathCache     map[string]uint32
@@ -163,6 +164,7 @@ func NewClient(c io.ReadWriteCloser, user, aname string, opts ...Option) (*Clien
 		fids:      nil,
 		lastFid:   0,
 		calls:     make(map[uint16]chan proto.FCall),
+		tagFids:   make(map[uint16]uint32),
 		pathCache: make(map[string]uint32),
 	}
 	var afid uint32 = _NOFID
@@ -273,19 +275,20 @@ func (c *Client) send(call proto.FCall) error {
 	return err
 }
 
-func (c *Client) takeTag() uint16 {
+func (c *Client) takeTag(fid uint32) uint16 {
 	c.Lock()
 	defer c.Unlock()
-	return c.lockedTakeTag()
+	return c.lockedTakeTag(fid)
 }
 
-func (c *Client) lockedTakeTag() uint16 {
+func (c *Client) lockedTakeTag(fid uint32) uint16 {
 	if len(c.tags) == 0 {
 		c.lastTag++
 		return c.lastTag
 	}
 	t := c.tags[len(c.tags)-1]
 	c.tags = c.tags[:len(c.tags)-1]
+	c.tagFids[t] = fid
 	return t
 }
 
@@ -297,6 +300,7 @@ func (c *Client) returnTag(tag uint16) {
 	defer c.Unlock()
 	c.tags = append(c.tags, tag)
 	delete(c.calls, tag)
+	delete(c.tagFids, tag)
 }
 
 func (c *Client) takeFid() uint32 {
@@ -337,7 +341,7 @@ func (c *Client) walkFid(path string) (uint32, error) {
 	parts := removeBlank(strings.Split(path, "/"))
 	newfid := c.takeFid()
 	walk := proto.TWalk{
-		Header: proto.Header{proto.Twalk, c.takeTag()},
+		Header: proto.Header{proto.Twalk, c.takeTag(c.rootFid)},
 		Fid:    c.rootFid,
 		Newfid: newfid,
 		Nwname: uint16(len(parts)),
@@ -395,7 +399,7 @@ func (c *Client) clunkFid(fid uint32) {
 		panic("Clunked 0")
 	}
 	clunk := proto.TClunk{
-		Header: proto.Header{proto.Tclunk, c.takeTag()},
+		Header: proto.Header{proto.Tclunk, c.takeTag(0)},
 		Fid:    fid,
 	}
 	//log.Println("Getting Clunk Response.")
@@ -439,7 +443,7 @@ func (c *Client) Stat(path string) (*proto.Stat, error) {
 	}
 
 	stat := proto.TStat{
-		Header: proto.Header{proto.Tstat, c.takeTag()},
+		Header: proto.Header{proto.Tstat, c.takeTag(newFid)},
 		Fid:    newFid,
 	}
 	res, err := c.getResponse(&stat)
@@ -465,7 +469,7 @@ func (c *Client) WStat(path string, stat *proto.Stat) error {
 	}
 
 	wstat := proto.TWstat{
-		Header: proto.Header{proto.Twstat, c.takeTag()},
+		Header: proto.Header{proto.Twstat, c.takeTag(newFid)},
 		Fid:    newFid,
 		Stat:   *stat,
 	}
@@ -492,7 +496,7 @@ func (c *Client) Create(name string, perm os.FileMode) (*File, error) {
 	}
 
 	create := proto.TCreate{
-		Header: proto.Header{proto.Tcreate, c.takeTag()},
+		Header: proto.Header{proto.Tcreate, c.takeTag(newFid)},
 		Fid:    newFid,
 		Name:   path.Base(name),
 		Perm:   uint32(perm),
@@ -533,7 +537,7 @@ func (c *Client) Open(path string, mode proto.Mode) (*File, error) {
 	}
 
 	open := proto.TOpen{
-		Header: proto.Header{proto.Topen, c.takeTag()},
+		Header: proto.Header{proto.Topen, c.takeTag(newFid)},
 		Fid:    newFid,
 		Mode:   mode,
 	}
@@ -564,12 +568,16 @@ func (c *Client) Open(path string, mode proto.Mode) (*File, error) {
 	}, nil
 }
 
-func (f *File) flushAll() error {
+func (f *File) flushAll(fid uint32) error {
 	f.client.Lock()
 	defer f.client.Unlock()
-	for t, r := range f.client.calls {
+	for t, cf := range f.client.tagFids {
+		if cf != fid {
+			continue
+		}
+		//for t, r := range f.client.calls {
 		flush := proto.TFlush{
-			Header: proto.Header{proto.Tflush, f.client.lockedTakeTag()},
+			Header: proto.Header{proto.Tflush, f.client.lockedTakeTag(0)},
 			Oldtag: t,
 		}
 		verboseLog("<=out= %v\n", proto.FCall(&flush))
@@ -577,6 +585,7 @@ func (f *File) flushAll() error {
 		if err != nil {
 			return err
 		}
+		r := f.client.calls[t]
 		close(r) // Should we send an RError instead?
 		delete(f.client.calls, t)
 	}
@@ -586,7 +595,7 @@ func (f *File) flushAll() error {
 func (f *File) Close() error {
 	//log.Println("Close()")
 	//defer log.Println("Close() Return")
-	if err := f.flushAll(); err != nil {
+	if err := f.flushAll(f.fid); err != nil {
 		return err
 	}
 	f.client.clunkFid(f.fid)
@@ -603,7 +612,7 @@ func (f *File) Read(p []byte) (n int, err error) {
 		p = p[:f.iounit]
 	}
 	read := proto.TRead{
-		Header: proto.Header{proto.Tread, f.client.takeTag()},
+		Header: proto.Header{proto.Tread, f.client.takeTag(f.fid)},
 		Fid:    f.fid,
 		Offset: f.offset,
 		Count:  uint32(len(p)),
@@ -645,7 +654,7 @@ func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 		b = b[:f.iounit]
 	}
 	read := proto.TRead{
-		Header: proto.Header{proto.Tread, f.client.takeTag()},
+		Header: proto.Header{proto.Tread, f.client.takeTag(f.fid)},
 		Fid:    f.fid,
 		Offset: uint64(off),
 		Count:  uint32(len(b)),
@@ -699,7 +708,7 @@ func (f *File) twrite(p []byte, off uint64) (n int, err error) {
 			b = b[:f.iounit]
 		}
 		write := proto.TWrite{
-			Header: proto.Header{proto.Twrite, f.client.takeTag()},
+			Header: proto.Header{proto.Twrite, f.client.takeTag(f.fid)},
 			Fid:    f.fid,
 			Offset: uint64(off) + uint64(wrote),
 			Count:  uint32(len(b)),
@@ -734,7 +743,7 @@ func (c *Client) Remove(path string) error {
 	defer c.returnFid(newFid)
 
 	remove := proto.TRemove{
-		Header: proto.Header{proto.Tremove, c.takeTag()},
+		Header: proto.Header{proto.Tremove, c.takeTag(newFid)},
 		Fid:    newFid,
 	}
 	res, err := c.getResponse(&remove)

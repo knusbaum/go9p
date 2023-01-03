@@ -1,3 +1,4 @@
+//go:build !plan9
 // +build !plan9
 
 package go9p
@@ -74,7 +75,6 @@ func postfd(name string) (readWriteCloser, *os.File, error) {
 		return nil, nil, err
 	}
 	name = filepath.Join(ns, name)
-
 	f1, f2 := newPipePair()
 	go func() {
 		err := mux9p.Listen("unix", name, f2, &mux9p.Config{})

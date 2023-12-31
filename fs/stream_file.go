@@ -57,7 +57,11 @@ func (f *StreamFile) Open(fid uint64, omode proto.Mode) error {
 		omode == proto.Ordwr {
 		return errors.New("Cannot open this stream for writing.")
 	}
-	f.fidReader[fid] = f.s.AddReader()
+	rdr := f.s.AddReader()
+	if rdr == nil {
+		return errors.New("Failed to open stream for reading.")
+	}
+	f.fidReader[fid] = rdr
 	return nil
 }
 

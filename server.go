@@ -13,6 +13,8 @@ package go9p
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log"
@@ -68,7 +70,7 @@ type Conn interface {
 func handleConnection(nc net.Conn, srv Srv) {
 	defer nc.Close()
 	read := bufio.NewReader(nc)
-	err := handleIOAsync(read, nc, srv)
+	err := handleIOAsync(read, nc, "", srv)
 	if err != nil {
 		log.Printf("%v\n", err)
 	}
@@ -105,7 +107,7 @@ func handleIO(r io.Reader, w io.Writer, srv Srv) error {
 	return nil
 }
 
-func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
+func handleIOAsync(r io.Reader, w io.Writer, uname string, srv Srv) error {
 	incoming := make(chan proto.FCall, 100)
 	outgoing := make(chan proto.FCall, 100)
 
@@ -158,6 +160,18 @@ func handleIOAsync(r io.Reader, w io.Writer, srv Srv) error {
 			log.Printf("Protocol error: %v\n", err)
 			return err
 		}
+
+		if ta, ok := call.(*proto.TAttach); ok && uname != "" {
+			// TODO: it would be nice to move this down into Srv so that we
+			// can respond with RError instead of just killing the connection.
+			if ta.Uname != uname {
+				outgoing <- &proto.RError{proto.Header{proto.Rerror, ta.Tag}, fmt.Sprintf("invalid user %s", ta.Uname)}
+				return fmt.Errorf("Protocol error: client connected with cert for %s, but attached with user name %s", uname, ta.Uname)
+			}
+			fmt.Printf("UNAME %s -> %s\n", ta.Uname, uname)
+			ta.Uname = uname
+		}
+
 		select {
 		case incoming <- call:
 		default:
@@ -217,7 +231,7 @@ func handleCall(call proto.FCall, srv Srv, conn Conn) (proto.FCall, error) {
 // It reads 9p2000 messages from r, handles them with srv, and
 // writes the responses to w.
 func ServeReadWriter(r io.Reader, w io.Writer, srv Srv) error {
-	return handleIOAsync(r, w, srv)
+	return handleIOAsync(r, w, "", srv)
 }
 
 // Serve serves srv on the given address, addr.
@@ -235,6 +249,54 @@ func Serve(addr string, srv Srv) error {
 			defer nc.Close()
 			read := bufio.NewReader(nc)
 			err := ServeReadWriter(read, nc, srv)
+			if err != nil {
+				log.Printf("%v\n", err)
+			}
+		}(a, srv)
+	}
+}
+
+func ServeTLS(addr string, srvcert tls.Certificate, ca *x509.Certificate, withauth bool, srv Srv) error {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	certpool := x509.NewCertPool()
+	certpool.AddCert(ca)
+
+	var clientAuth tls.ClientAuthType
+	if withauth {
+		clientAuth = tls.RequireAndVerifyClientCert
+	} else {
+		clientAuth = tls.NoClientCert
+	}
+
+	tlsl := tls.NewListener(l, &tls.Config{
+		Certificates: []tls.Certificate{srvcert},
+		ClientCAs:    certpool,
+		ClientAuth:   clientAuth,
+	})
+	for {
+		a, err := tlsl.Accept()
+		if err != nil {
+			return err
+		}
+		go func(nc net.Conn, srv Srv) {
+			//fmt.Printf("SERVER GOT CONNECTION: %#v\n", nc)
+			var uname string
+			if tc, ok := nc.(*tls.Conn); ok && withauth {
+				err := tc.Handshake()
+				if err != nil {
+					fmt.Printf("TLS Error: %v\n", err)
+					return
+				}
+				fmt.Printf("CLIENT: %#v\n", tc.ConnectionState())
+				fmt.Printf("Client connected as %v\n", tc.ConnectionState().PeerCertificates[0].Subject.CommonName)
+				uname = tc.ConnectionState().PeerCertificates[0].Subject.CommonName
+			}
+			defer nc.Close()
+			read := bufio.NewReader(nc)
+			err := handleIOAsync(read, nc, uname, srv)
 			if err != nil {
 				log.Printf("%v\n", err)
 			}

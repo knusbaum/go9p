@@ -2,16 +2,18 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"hash/crc64"
 	"io"
 	"log"
 	"math"
-	"net"
 	"os"
 	"os/user"
 	"path"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -19,6 +21,7 @@ import (
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/knusbaum/go9p"
+	"github.com/knusbaum/go9p/cert"
 	"github.com/knusbaum/go9p/client"
 	"github.com/knusbaum/go9p/proto"
 
@@ -27,11 +30,33 @@ import (
 
 var crc64Table = crc64.MakeTable(0xC96C5795D7870F42)
 
-var DefaultTTL = 10 * time.Second
-var ncTTL = uint64(10)
+//var DefaultTTL = 10 * time.Second
+//var ncTTL = uint64(10)
+
+var CacheTTL = 0 * time.Second
+var ncTTL = uint64(0)
 
 var dirCacheLock sync.RWMutex
 var dirCache map[string]*Dir = make(map[string]*Dir)
+
+var unknownUID uint32
+var unknownGID uint32
+var authUser string
+var sysUser, sysGroup uint32
+
+func uidForUser(uid string) uint32 {
+	if uid == authUser {
+		return sysUser
+	}
+	return unknownUID
+}
+
+func gidForGroup(gid string) uint32 {
+	if gid == authUser {
+		return sysGroup
+	}
+	return unknownGID
+}
 
 func dirGet(path string) *Dir {
 	dirCacheLock.RLock()
@@ -63,6 +88,7 @@ type StatDir struct {
 }
 
 func (r *StatDir) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
+	//log.Printf("(*StatDir).Getattr(%s)", r.path)
 	e := r.Dir.Getattr(ctx, f, out)
 	out.Mode = r.Mode
 	return e
@@ -113,6 +139,7 @@ func (r *Dir) Rename(ctx context.Context, name string, newParent fs.InodeEmbedde
 }
 
 func (r *Dir) Unlink(ctx context.Context, name string) syscall.Errno {
+	//log.Printf("(*Dir).Unlink(%s)", r.path)
 	err := r.client.Remove(path.Join(r.path, name))
 	if err != nil {
 		//log.Printf("Unlink failed: %s\n", err)
@@ -124,6 +151,7 @@ func (r *Dir) Unlink(ctx context.Context, name string) syscall.Errno {
 }
 
 func (r *Dir) Rmdir(ctx context.Context, name string) syscall.Errno {
+	//log.Printf("(*Dir).Rmdir(%s)", r.path)
 	err := r.client.Remove(path.Join(r.path, name))
 	if err != nil {
 		//log.Printf("Unlink failed: %s\n", err)
@@ -135,10 +163,14 @@ func (r *Dir) Rmdir(ctx context.Context, name string) syscall.Errno {
 }
 
 func (r *Dir) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
+	//log.Printf("(*Dir).Mkdir(%s)", r.path)
 	fullPath := path.Join(r.path, name)
 	//log.Printf("Mkdir(%s)", fullPath)
 	file, err := r.client.Create(fullPath, os.FileMode(mode|proto.DMDIR))
 	if err != nil {
+		if err.Error() == "Permission denied." {
+			return nil, syscall.EACCES
+		}
 		//log.Printf("Error creating [%s]: %s", r.path, err)
 		return nil, syscall.EINVAL
 	}
@@ -164,6 +196,7 @@ func (r *Dir) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.Ent
 }
 
 func (r *Dir) oldGetattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
+	//log.Printf("(*Dir).oldGetattr(%s)", r.path)
 	if r.statCache == nil || time.Now().After(r.statTTL) {
 		//log.Printf("oldGetattr(%s)", r.path)
 		stat, err := r.client.Stat(r.path)
@@ -172,7 +205,7 @@ func (r *Dir) oldGetattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut
 			return syscall.ENOENT
 		}
 		r.statCache = stat
-		r.statTTL = time.Now().Add(DefaultTTL)
+		r.statTTL = time.Now().Add(CacheTTL)
 	}
 	out.AttrValid = ncTTL
 	out.Nlink = 1
@@ -180,6 +213,8 @@ func (r *Dir) oldGetattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut
 	out.Mode = r.statCache.Mode
 	out.Size = r.statCache.Length
 	out.Mtime = uint64(r.statCache.Mtime)
+	out.Uid = uidForUser(r.statCache.Uid)
+	out.Gid = gidForGroup(r.statCache.Gid)
 	return 0
 }
 
@@ -244,13 +279,18 @@ func (r *Dir) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAttrIn, 
 		dir.dirTTL = time.Time{}
 		dir.statTTL = time.Time{}
 	}
+	out.Uid = uidForUser(stat.Uid)
+	out.Gid = gidForGroup(stat.Gid)
 	return 0
 }
 
 func (r *Dir) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (node *fs.Inode, fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
-	//log.Printf("Create(%s)", path.Join(r.path, name))
+	//log.Printf("(*Dir).Create(%s)", path.Join(r.path, name))
 	file, err := r.client.Create(path.Join(r.path, name), os.FileMode(mode))
 	if err != nil {
+		if err.Error() == "Permission denied." {
+			return nil, nil, 0, syscall.EACCES
+		}
 		//log.Printf("Error creating [%s]: %s", r.path, err)
 		return nil, nil, 0, syscall.EINVAL
 	}
@@ -275,6 +315,7 @@ func (r *Dir) Create(ctx context.Context, name string, flags uint32, mode uint32
 }
 
 func (r *Dir) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
+	//log.Printf("(*Dir).Lookup(%s): %s", r.path, name)
 	if r.dirCache == nil || time.Now().After(r.dirTTL) {
 		//log.Printf("LOOKUP READDIR(%s)\n", r.path)
 		stats, err := r.client.Readdir(r.path)
@@ -282,7 +323,7 @@ func (r *Dir) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.
 			return nil, syscall.EPIPE
 		}
 		r.dirCache = stats
-		r.dirTTL = time.Now().Add(DefaultTTL)
+		r.dirTTL = time.Now().Add(CacheTTL)
 	}
 	for _, stat := range r.dirCache {
 		if stat.Name == name {
@@ -293,6 +334,8 @@ func (r *Dir) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.
 			out.Mode = stat.Mode
 			out.Size = stat.Length
 			out.Mtime = uint64(stat.Mtime)
+			out.Uid = uidForUser(stat.Uid)
+			out.Gid = gidForGroup(stat.Gid)
 			fullPath := path.Join(r.path, name)
 			if stat.Mode&proto.DMDIR > 0 {
 				if dir := dirGet(fullPath); dir != nil {
@@ -309,6 +352,7 @@ func (r *Dir) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.
 }
 
 func (r *Dir) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
+	//log.Printf("(*Dir).Readdir(%s)", r.path)
 	if r.dirCache == nil || time.Now().After(r.dirTTL) {
 		//log.Printf("ACTUAL READDIR(%s)\n", r.path)
 		stats, err := r.client.Readdir(r.path)
@@ -316,7 +360,7 @@ func (r *Dir) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 			return nil, syscall.EPIPE
 		}
 		r.dirCache = stats
-		r.dirTTL = time.Now().Add(DefaultTTL)
+		r.dirTTL = time.Now().Add(CacheTTL)
 	}
 	entries := make([]fuse.DirEntry, 0)
 	for _, stat := range r.dirCache {
@@ -376,6 +420,9 @@ func (f *FileNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 	//log.Printf("(*FileNode).Open(%s, %#x -> %#x)\n", f.path, flags, convertFlag(flags))
 	file, err := f.client.Open(f.path, convertFlag(flags))
 	if err != nil {
+		if err.Error() == "Permission denied." {
+			return nil, 0, syscall.EACCES
+		}
 		//log.Printf("FUSE: Open(%s) -> Error: %s", f.path, err)
 		return nil, 0, syscall.EINVAL
 	}
@@ -413,6 +460,8 @@ func (f *FileNode) oldGetattr(ctx context.Context, h fs.FileHandle, out *fuse.At
 	out.Mode = stat.Mode
 	out.Size = stat.Length
 	out.Mtime = uint64(stat.Mtime)
+	out.Uid = uidForUser(stat.Uid)
+	out.Gid = gidForGroup(stat.Gid)
 	return 0
 }
 
@@ -432,6 +481,8 @@ func (f *FileNode) Getattr(ctx context.Context, h fs.FileHandle, out *fuse.AttrO
 				out.Mode = stat.Mode
 				out.Size = stat.Length
 				out.Mtime = uint64(stat.Mtime)
+				out.Uid = uidForUser(stat.Uid)
+				out.Gid = gidForGroup(stat.Gid)
 				return 0
 			}
 		}
@@ -478,6 +529,8 @@ func (f *FileNode) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAtt
 		dir.dirTTL = time.Time{}
 		dir.statTTL = time.Time{}
 	}
+	out.Uid = uidForUser(stat.Uid)
+	out.Gid = gidForGroup(stat.Gid)
 	return 0
 }
 
@@ -490,7 +543,6 @@ func (f *File) Release(ctx context.Context) syscall.Errno {
 	//log.Printf("(*File).Release(%s)\n", f.node.path)
 	err := f.file.Close()
 	if err != nil {
-		//log.Printf("Error flushing file: %s", err)
 		return syscall.EINVAL
 	}
 	return 0
@@ -503,7 +555,7 @@ func (f *File) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResul
 		if err == io.EOF {
 			return fuse.ReadResultData(dest[:n]), 0
 		}
-		//log.Printf("Error reading file: %s", err)
+		log.Printf("Error reading file: %s", err)
 		return nil, syscall.EINVAL
 	}
 	return fuse.ReadResultData(dest[:n]), 0
@@ -530,6 +582,8 @@ func (f *File) Setattr(ctx context.Context, in *fuse.SetAttrIn, out *fuse.AttrOu
 		dir.dirTTL = time.Time{}
 		dir.statTTL = time.Time{}
 	}
+	out.Uid = uidForUser(stat.Uid)
+	out.Gid = gidForGroup(stat.Gid)
 	return 0
 }
 
@@ -572,8 +626,13 @@ func main() {
 	u, err := user.Current()
 	if err != nil {
 		defaultUser = "none"
+		log.Fatal("Failed to determine current user: %v", err)
 	} else {
 		defaultUser = u.Username
+		su, _ := strconv.Atoi(u.Uid)
+		sg, _ := strconv.Atoi(u.Gid)
+		sysUser = uint32(su)
+		sysGroup = uint32(sg)
 	}
 
 	flag.Usage = func() {
@@ -591,15 +650,43 @@ func main() {
 	stdio := flag.Bool("s", false, "Speak 9p over standard input/output")
 	srv := flag.Bool("srv", false, "Attach to a 9p service, not an address")
 	other := flag.Bool("other", false, "Enable the allow_other mount flag (See: mount.fuse(8))")
+	usetls := flag.Bool("tls", false, "Use TLS to encrypt communication with the server.")
+	certfile := flag.String("certfile", "", "If provided, use the certificate to authenticate to the server. Implies -tls")
+	cachetime := flag.String("cachetime", "10s", "If provided, this is the amount of time various things (directory contents, file stats, etc) are cached before being recalculated. Must be in the format that time.ParseDuration accepts.")
+
 	flag.Parse()
-	var s io.ReadWriteCloser
+
+	unknownUID = unusedUid()
+	unknownGID = unusedGid()
+	authUser = *username
+	go9p.Verbose = *verbose
+
+	t, err := time.ParseDuration(*cachetime)
+	if err != nil {
+		log.Fatalf("Failed to parse cache time: %v\n", err)
+	}
+	CacheTTL = t
+	ncTTL = uint64(t / time.Second)
+
+	var clientOpts []client.Option
+	if *auth {
+		clientOpts = append(clientOpts, client.WithAuth(client.Plan9Auth))
+	}
+
+	//var network, addr string
+	var c *client.Client
 	var mountpoint string
 	if *stdio {
 		if len(flag.Args()) < 1 {
 			flag.Usage()
 			os.Exit(1)
 		}
-		s = &ReadWriteCloser{os.Stdin, os.Stdout}
+		s := &ReadWriteCloser{os.Stdin, os.Stdout}
+		log.Printf("Mapping authenticated user %s to system user %s", authUser, u.Username)
+		c, err = client.NewClient(s, *username, *aname, clientOpts...)
+		if err != nil {
+			log.Fatal(err)
+		}
 		mountpoint = flag.Arg(0)
 	} else {
 		if len(flag.Args()) < 2 {
@@ -617,20 +704,37 @@ func main() {
 			ns := fans.Namespace()
 			addr = path.Join(ns, addr)
 		}
-		s, err = net.Dial(network, addr)
-		if err != nil {
-			log.Fatal(err)
-		}
+
 		mountpoint = flag.Arg(1)
-	}
-	var clientOpts []client.Option
-	if *auth {
-		clientOpts = append(clientOpts, client.WithAuth(client.Plan9Auth))
-	}
-	go9p.Verbose = *verbose
-	c, err := client.NewClient(s, *username, *aname, clientOpts...)
-	if err != nil {
-		log.Fatal(err)
+		if *usetls {
+			var crt *tls.Certificate
+			var ca *x509.Certificate
+			if *certfile != "" {
+				ecrt, eca, err := cert.LoadTLSCert(*certfile)
+				if err != nil {
+					log.Fatalf("Failed to load certificate: %s", err)
+				}
+				u, err := cert.TLSCertUser(&ecrt)
+				if err != nil {
+					log.Fatalf("Failed to find certificate user: %s", err)
+				}
+				log.Printf("TLS USER IS: %v\n", u)
+				authUser = u
+				crt = &ecrt
+				ca = eca
+			}
+			log.Printf("Mapping authenticated user %s to system user %s", authUser, u.Username)
+			c, err = client.DialTLS(network, addr, *username, *aname, crt, ca)
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			log.Printf("Mapping authenticated user %s to system user %s", authUser, u.Username)
+			c, err = client.Dial(network, addr, *username, *aname, clientOpts...)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 	}
 
 	opts := &fs.Options{
@@ -638,7 +742,7 @@ func main() {
 		GID: uint32(os.Getgid()),
 		MountOptions: fuse.MountOptions{
 			DirectMount: true,
-			AllowOther: *other,
+			AllowOther:  *other,
 		},
 	}
 	opts.Debug = *debug

@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -222,6 +223,7 @@ func (s *baseStream) Close() error {
 		return nil
 	}
 	for _, reader := range s.readers {
+		fmt.Printf("Closing Reader\n")
 		reader.Close()
 	}
 	s.readers = nil
@@ -501,4 +503,91 @@ func (s *SavedStream) Close() error {
 	s.f.Close()
 	s.f = nil
 	return nil
+}
+
+// A SingleStream allows a single reader, and all writes will block until the reader
+// consumes the writes.
+type SingleStream struct {
+	lock     sync.Mutex
+	buffer   []byte
+	writesem chan struct{} // write semaphore. Write consumes, and read signals
+	readsem  chan struct{} // read semaphore, Read consumes, write signals
+	closed   chan struct{}
+	reader   *singleStreamReader
+}
+
+type singleStreamReader struct {
+	ss *SingleStream
+}
+
+func (r *singleStreamReader) Read(p []byte) (n int, err error) {
+	<-r.ss.readsem
+	select {
+	case <-r.ss.closed:
+		return 0, nil
+	default:
+	}
+	n = copy(p, r.ss.buffer)
+	r.ss.buffer = r.ss.buffer[n:]
+	if len(r.ss.buffer) == 0 {
+		// Completed reading the full buffer. We can trigger a write
+		r.ss.writesem <- struct{}{}
+		return n, nil
+	}
+	// There's still more to read, put an element on the readsem
+	r.ss.readsem <- struct{}{}
+	return n, nil
+}
+func (r *singleStreamReader) Close() {}
+
+func (s *SingleStream) AddReader() StreamReader {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if s.reader != nil {
+		return nil
+	}
+	s.reader = &singleStreamReader{
+		ss: s,
+	}
+	return s.reader
+}
+func (s *SingleStream) RemoveReader(r StreamReader) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if s.reader == nil {
+		return
+	}
+	if s.reader != r {
+		return
+	}
+	s.reader = nil
+}
+func (s *SingleStream) Write(p []byte) (n int, err error) {
+	<-s.writesem // One write at a time, until it is entirely consumed
+	s.buffer = p
+	s.readsem <- struct{}{}
+	return len(p), nil
+}
+func (s *SingleStream) Close() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	select {
+	case <-s.closed:
+	default:
+		close(s.closed)
+		close(s.readsem)
+	}
+	return nil
+}
+func (s *SingleStream) length() uint64 { return 0 }
+
+func NewSingleStream() *SingleStream {
+	s := &SingleStream{
+		writesem: make(chan struct{}, 1),
+		readsem:  make(chan struct{}, 1),
+		closed:   make(chan struct{}),
+	}
+	// readsem starts off available
+	s.writesem <- struct{}{}
+	return s
 }

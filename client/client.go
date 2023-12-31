@@ -2,11 +2,14 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math"
+	"net"
 	"os"
 	"path"
 
@@ -149,6 +152,42 @@ func PlainAuth(password string) func(string, io.ReadWriter) (string, error) {
 			s.Write(resp)
 		}
 	}
+}
+
+func DialTLS(network, addr, user, aname string, cert *tls.Certificate, ca *x509.Certificate, opts ...Option) (*Client, error) {
+	cfg := &tls.Config{InsecureSkipVerify: true}
+	if cert != nil {
+		cfg.Certificates = []tls.Certificate{*cert}
+
+		x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			return nil, err
+		}
+
+		user = x509cert.Subject.CommonName
+	}
+	if ca != nil {
+		certpool := x509.NewCertPool()
+		certpool.AddCert(ca)
+
+		cfg.RootCAs = certpool
+		cfg.InsecureSkipVerify = false
+	}
+
+	c, err := tls.Dial(network, addr, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClient(c, user, aname, opts...)
+}
+
+func Dial(network, addr, user, aname string, opts ...Option) (*Client, error) {
+	c, err := net.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	return NewClient(c, user, aname, opts...)
 }
 
 func NewClient(c io.ReadWriteCloser, user, aname string, opts ...Option) (*Client, error) {
@@ -619,19 +658,18 @@ func (f *File) Read(p []byte) (n int, err error) {
 	}
 	res, err := f.client.getResponse(&read)
 	if err != nil {
-		//c.clunkFid(newFid)
 		return 0, err
 	}
 	if rerror, ok := res.(*proto.RError); ok {
-		//c.clunkFid(newFid)
+		if rerror.Ename == "EOF" {
+			return 0, io.EOF
+		}
 		return 0, errors.New(rerror.Ename)
 	}
 	rresp, ok := res.(*proto.RRead)
 	if !ok {
-		//c.clunkFid(newFid)
 		return 0, errors.New("Unexpected response to TRead.")
 	}
-	//log.Printf("RRead <- %d", len(rresp.Data))
 
 	n = copy(p, rresp.Data)
 	if uint32(n) != rresp.Count {
@@ -664,6 +702,9 @@ func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 		return 0, err
 	}
 	if rerror, ok := res.(*proto.RError); ok {
+		if rerror.Ename == "EOF" {
+			return 0, io.EOF
+		}
 		return 0, errors.New(rerror.Ename)
 	}
 	rresp, ok := res.(*proto.RRead)

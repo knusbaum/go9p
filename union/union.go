@@ -15,23 +15,30 @@ import (
 type MountOption int
 
 const (
+	// Replace the old file by the new one
 	REPLACE MountOption = iota
+	// Place the new directory at the beginning of the union
 	BEFORE
+	// Place the new directory at the end of the union
 	AFTER
 )
 
 type mountEntry struct {
 	c          *client.Client
-	f          *UnionFile
-	d          *UnionDir
+	f          *unionFile
+	d          *unionDir
 	mountPoint string
 	replace    bool
 	create     bool
 }
 
+func (me mountEntry) String() string {
+	return fmt.Sprintf("file: %v dir: %v mountpoint: %s create: %t replace: %t", me.f, me.d, me.mountPoint, me.create, me.replace)
+}
+
 type baseUnionNode struct {
 	sync.RWMutex
-	parent *UnionDir
+	parent *unionDir
 	path   string
 	mount  mountEntry
 }
@@ -46,7 +53,7 @@ func (n *baseUnionNode) SetParent(p fs.Dir) {
 	n.Lock()
 	defer n.Unlock()
 
-	ud, ok := p.(*UnionDir)
+	ud, ok := p.(*unionDir)
 	if !ok {
 		panic(fmt.Errorf("parent must be set to a union directory"))
 	}
@@ -56,9 +63,8 @@ func (n *baseUnionNode) SetParent(p fs.Dir) {
 func (n *baseUnionNode) Stat() proto.Stat {
 	// This is the root
 	if n.path == "" {
-		// TODO make this stat as the root directory
 		return proto.Stat{
-			Mode: 0x80000000,
+			Mode: proto.DMDIR,
 		}
 	}
 
@@ -90,8 +96,7 @@ func (n *baseUnionNode) WriteStat(s *proto.Stat) error {
 
 	rel, err := filepath.Rel(n.mount.mountPoint, n.path)
 	if err != nil {
-		// TODO consider panic instead
-		return fmt.Errorf("this should never happen")
+		return err
 	}
 
 	switch {
@@ -110,7 +115,7 @@ func (n *baseUnionNode) WriteStat(s *proto.Stat) error {
 	panic(fmt.Errorf("invalid mount table state"))
 }
 
-type UnionDir struct {
+type unionDir struct {
 	baseUnionNode
 	mountTable []mountEntry
 }
@@ -119,17 +124,19 @@ type UnionDir struct {
 //
 // Note that the caller must take a copy of the mount table
 // so that it can be owned by the new union directory.
-func NewUnionDir(n baseUnionNode, mountTable []mountEntry) *UnionDir {
-	return &UnionDir{
+func newUnionDir(n baseUnionNode, mountTable []mountEntry) *unionDir {
+	return &unionDir{
 		baseUnionNode: n,
 		mountTable:    mountTable,
 	}
 }
 
-func (ud *UnionDir) find(rel string) *baseUnionNode {
-	if strings.HasPrefix(rel, "/") {
-		rel = rel[1:]
-	}
+func (ud *unionDir) String() string {
+	return fmt.Sprintf("path: %s mountTable: %v children: %v", ud.path, ud.mountTable, ud.Children())
+}
+
+func (ud *unionDir) find(rel string) *baseUnionNode {
+	rel = strings.TrimPrefix(rel, "/")
 
 	if rel == "" {
 		return &ud.baseUnionNode
@@ -151,7 +158,7 @@ func (ud *UnionDir) find(rel string) *baseUnionNode {
 		}
 
 		n = child.(*baseUnionNode)
-		if cd, ok := child.(*UnionDir); ok {
+		if cd, ok := child.(*unionDir); ok {
 			d = cd
 		}
 	}
@@ -159,10 +166,8 @@ func (ud *UnionDir) find(rel string) *baseUnionNode {
 	return n
 }
 
-func (ud *UnionDir) findDir(rel string) *UnionDir {
-	if strings.HasPrefix(rel, "/") {
-		rel = rel[1:]
-	}
+func (ud *unionDir) findDir(rel string) *unionDir {
+	rel = strings.TrimPrefix(rel, "/")
 
 	if rel == "" {
 		return ud
@@ -170,7 +175,7 @@ func (ud *UnionDir) findDir(rel string) *UnionDir {
 
 	parts := strings.Split(rel, "/")
 	d := ud
-	var n *UnionDir
+	var n *unionDir
 
 	for _, part := range parts {
 		if d == nil {
@@ -183,7 +188,7 @@ func (ud *UnionDir) findDir(rel string) *UnionDir {
 			return nil
 		}
 
-		n, ok = child.(*UnionDir)
+		n, ok = child.(*unionDir)
 		d = n
 		if !ok {
 			return nil
@@ -193,10 +198,8 @@ func (ud *UnionDir) findDir(rel string) *UnionDir {
 	return n
 }
 
-func (ud *UnionDir) findFile(rel string) *UnionFile {
-	if strings.HasPrefix(rel, "/") {
-		rel = rel[1:]
-	}
+func (ud *unionDir) findFile(rel string) *unionFile {
+	rel = strings.TrimPrefix(rel, "/")
 
 	if rel == "" {
 		return nil
@@ -218,21 +221,21 @@ func (ud *UnionDir) findFile(rel string) *UnionFile {
 		}
 
 		n = child
-		if cd, ok := child.(*UnionDir); ok {
+		if cd, ok := child.(*unionDir); ok {
 			d = cd
 		}
 	}
 
-	if uf, ok := n.(*UnionFile); ok {
+	if uf, ok := n.(*unionFile); ok {
 		return uf
 	}
 
 	return nil
 }
 
-func (ud *UnionDir) RemoveFile(f fs.FSNode) error {
-	// TODO maybe someone will want to remove directories someday
-	uf, ok := f.(*UnionFile)
+func (ud *unionDir) RemoveFile(f fs.FSNode) error {
+	// TODO maybe someone will want to remove directories
+	uf, ok := f.(*unionFile)
 	if !ok {
 		return fmt.Errorf("cannot remove file that is not a union filesystem file")
 	}
@@ -259,13 +262,17 @@ func (ud *UnionDir) RemoveFile(f fs.FSNode) error {
 	panic(fmt.Errorf("invalid mount table state"))
 }
 
-func (ud *UnionDir) CreateFile(user, name string, perm uint32, mode uint8) (fs.File, error) {
+func (ud *unionDir) CreateFile(user, name string, perm uint32, mode uint8) (fs.File, error) {
 	// First, we find the mount that will permit creation
 	mte := ud.mount
 	if !mte.create {
 		for _, me := range ud.mountTable {
-			if me.create == true && ud.path == me.mountPoint {
+			if me.create && ud.path == me.mountPoint {
 				mte = me
+				break
+			}
+
+			if me.replace {
 				break
 			}
 		}
@@ -296,7 +303,7 @@ func (ud *UnionDir) CreateFile(user, name string, perm uint32, mode uint8) (fs.F
 			mount: mte,
 		}
 
-		return NewUnionFile(n), nil
+		return newUnionFile(n), nil
 	case mte.d != nil:
 		on := mte.d.find(rel)
 		if on == nil {
@@ -311,14 +318,18 @@ func (ud *UnionDir) CreateFile(user, name string, perm uint32, mode uint8) (fs.F
 	panic(fmt.Errorf("invalid mount table state"))
 }
 
-func (ud *UnionDir) CreateDir(user, name string, perm uint32, mode uint8) (fs.Dir, error) {
+func (ud *unionDir) CreateDir(user, name string, perm uint32, mode uint8) (fs.Dir, error) {
 	// TODO check the mode to ensure that this is DMDIR
 
 	mte := ud.mount
 	if !mte.create {
 		for _, me := range ud.mountTable {
-			if me.create == true && ud.path == me.mountPoint {
+			if me.create && ud.path == me.mountPoint {
 				mte = me
+				break
+			}
+
+			if me.replace {
 				break
 			}
 		}
@@ -353,7 +364,7 @@ func (ud *UnionDir) CreateDir(user, name string, perm uint32, mode uint8) (fs.Di
 		ud.RLock()
 		mountTable := append([]mountEntry{}, ud.mountTable...)
 		ud.RUnlock()
-		return NewUnionDir(n, mountTable), nil
+		return newUnionDir(n, mountTable), nil
 	case mte.d != nil:
 		on := mte.d.find(rel)
 		if on == nil {
@@ -369,7 +380,7 @@ func (ud *UnionDir) CreateDir(user, name string, perm uint32, mode uint8) (fs.Di
 	panic(fmt.Errorf("invalid mount table state"))
 }
 
-func (ud *UnionDir) Children() map[string]fs.FSNode {
+func (ud *unionDir) Children() map[string]fs.FSNode {
 	children := make(map[string]fs.FSNode)
 
 	// Lock to read the mount table to take a copy of it
@@ -408,12 +419,11 @@ func (ud *UnionDir) Children() map[string]fs.FSNode {
 					mount: me,
 				}
 
-				// TODO this constant should really be in the go9p package
-				if stat.Mode&0x80000000 != 0 {
-					children[stat.Name] = NewUnionDir(n, append([]mountEntry{}, mountTable...))
+				if stat.Mode&proto.DMDIR != 0 {
+					children[stat.Name] = newUnionDir(n, append([]mountEntry{}, mountTable...))
 				} else {
 					// TODO check if there is a mount point for the file here
-					children[stat.Name] = NewUnionFile(n)
+					children[stat.Name] = newUnionFile(n)
 				}
 			}
 		case me.d != nil:
@@ -423,13 +433,13 @@ func (ud *UnionDir) Children() map[string]fs.FSNode {
 			}
 			subchildren := on.Children()
 			for name, n := range subchildren {
-				if udn, ok := n.(*UnionDir); ok {
+				if udn, ok := n.(*unionDir); ok {
 					udn.mount = me
 					udn.path = filepath.Join(ud.path, name)
 					udn.mountTable = append([]mountEntry{}, mountTable...)
 					children[name] = udn
 				}
-				if ufn, ok := n.(*UnionFile); ok {
+				if ufn, ok := n.(*unionFile); ok {
 					ufn.mount = me
 					ufn.path = filepath.Join(ud.path, name)
 					children[name] = ufn
@@ -445,21 +455,25 @@ func (ud *UnionDir) Children() map[string]fs.FSNode {
 	return children
 }
 
-type UnionFile struct {
+type unionFile struct {
 	baseUnionNode
 	opens   map[uint64]*client.File
-	openufs map[uint64]*UnionFile
+	openufs map[uint64]*unionFile
 }
 
-func NewUnionFile(n baseUnionNode) *UnionFile {
-	return &UnionFile{
+func (ud *unionFile) String() string {
+	return fmt.Sprintf("path: %s opens: %d, openufs: %d", ud.path, len(ud.opens), len(ud.openufs))
+}
+
+func newUnionFile(n baseUnionNode) *unionFile {
+	return &unionFile{
 		baseUnionNode: n,
 		opens:         make(map[uint64]*client.File),
-		openufs:       make(map[uint64]*UnionFile),
+		openufs:       make(map[uint64]*unionFile),
 	}
 }
 
-func (uf *UnionFile) Open(fid uint64, omode proto.Mode) error {
+func (uf *unionFile) Open(fid uint64, omode proto.Mode) error {
 	rel, err := filepath.Rel(uf.mount.mountPoint, uf.path)
 	if err != nil {
 		return err
@@ -491,7 +505,7 @@ func (uf *UnionFile) Open(fid uint64, omode proto.Mode) error {
 	panic(fmt.Errorf("invalid mount table state"))
 }
 
-func (uf *UnionFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
+func (uf *unionFile) Read(fid uint64, offset uint64, count uint64) ([]byte, error) {
 	uf.RLock()
 	defer uf.RUnlock()
 
@@ -503,8 +517,11 @@ func (uf *UnionFile) Read(fid uint64, offset uint64, count uint64) ([]byte, erro
 		}
 
 		buf := make([]byte, count)
-		// TODO how to make this type conversion to signed safe
-		n, err := file.ReadAt(buf, int64(offset))
+		noffset := int64(offset)
+		if noffset < 0 {
+			return []byte{}, fmt.Errorf("offset sign underflow: %d", offset)
+		}
+		n, err := file.ReadAt(buf, noffset)
 		return buf[:n], err
 	case uf.mount.d != nil:
 		on := uf.openufs[fid]
@@ -519,7 +536,7 @@ func (uf *UnionFile) Read(fid uint64, offset uint64, count uint64) ([]byte, erro
 	panic(fmt.Errorf("invalid mount table state"))
 }
 
-func (uf *UnionFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
+func (uf *unionFile) Write(fid uint64, offset uint64, data []byte) (uint32, error) {
 	uf.RLock()
 	defer uf.RUnlock()
 
@@ -530,8 +547,11 @@ func (uf *UnionFile) Write(fid uint64, offset uint64, data []byte) (uint32, erro
 			return 0, fmt.Errorf("fid is not open: %d", fid)
 		}
 
-		// TODO how to make this type conversion to signed safe
-		n, err := file.WriteAt(data, int64(offset))
+		noffset := int64(offset)
+		if noffset < 0 {
+			return 0, fmt.Errorf("offset signed underflow: %d", offset)
+		}
+		n, err := file.WriteAt(data, noffset)
 		return uint32(n), err
 	case uf.mount.d != nil:
 		on := uf.openufs[fid]
@@ -546,7 +566,10 @@ func (uf *UnionFile) Write(fid uint64, offset uint64, data []byte) (uint32, erro
 	panic(fmt.Errorf("invalid mount table state"))
 }
 
-func (uf *UnionFile) Close(fid uint64) error {
+func (uf *unionFile) Close(fid uint64) error {
+	uf.Lock()
+	defer uf.Unlock()
+
 	switch {
 	case uf.mount.c != nil:
 		file, ok := uf.opens[fid]
@@ -555,7 +578,7 @@ func (uf *UnionFile) Close(fid uint64) error {
 		}
 		delete(uf.opens, fid)
 		return file.Close()
-	case uf.mount.f != nil:
+	case uf.mount.d != nil:
 		on := uf.openufs[fid]
 		if on == nil {
 			return fmt.Errorf("unknown fid, or file closed")
@@ -569,16 +592,16 @@ func (uf *UnionFile) Close(fid uint64) error {
 	panic(fmt.Errorf("invalid mount table state"))
 }
 
-func CreateUnionFile(fs *fs.FS, p fs.Dir, user, name string, perm uint32, mode uint8) (fs.File, error) {
-	parent, ok := p.(*UnionDir)
+func createUnionFile(fs *fs.FS, p fs.Dir, user, name string, perm uint32, mode uint8) (fs.File, error) {
+	parent, ok := p.(*unionDir)
 	if !ok {
 		return nil, fmt.Errorf("directory is not a union filesystem directory")
 	}
 	return parent.CreateFile(user, name, perm, mode)
 }
 
-func CreateUnionDir(fs *fs.FS, p fs.Dir, user, name string, perm uint32, mode uint8) (fs.Dir, error) {
-	parent, ok := p.(*UnionDir)
+func createUnionDir(fs *fs.FS, p fs.Dir, user, name string, perm uint32, mode uint8) (fs.Dir, error) {
+	parent, ok := p.(*unionDir)
 	if !ok {
 		return nil, fmt.Errorf("directory is not a union filesystem directory")
 	}
@@ -586,8 +609,8 @@ func CreateUnionDir(fs *fs.FS, p fs.Dir, user, name string, perm uint32, mode ui
 	return parent.CreateDir(user, name, perm, mode)
 }
 
-func RemoveUnionFile(fs *fs.FS, f fs.FSNode) error {
-	parent, ok := f.Parent().(*UnionDir)
+func removeUnionFile(fs *fs.FS, f fs.FSNode) error {
+	parent, ok := f.Parent().(*unionDir)
 	if !ok {
 		return fmt.Errorf("parent is not a union filesystem directory")
 	}
@@ -597,18 +620,22 @@ func RemoveUnionFile(fs *fs.FS, f fs.FSNode) error {
 
 func NewUnionFS() *fs.FS {
 	return &fs.FS{
-		Root:       &UnionDir{baseUnionNode: baseUnionNode{path: "/"}},
-		CreateFile: CreateUnionFile,
-		CreateDir:  CreateUnionDir,
-		RemoveFile: RemoveUnionFile,
+		Root:       &unionDir{baseUnionNode: baseUnionNode{path: "/"}},
+		CreateFile: createUnionFile,
+		CreateDir:  createUnionDir,
+		RemoveFile: removeUnionFile,
 	}
 }
 
-// Mount a 9p client into the filesystem
+// Mount a 9p client into the union filesystem at the old path.
+//
+// The provided filesystem must be a union filesystem created with NewUnionFS().
+// The create parameter indicates whether new files or directories at the old path
+// should be created with this client, unless a higher priority mount is also create.
 func Mount(fs *fs.FS, c *client.Client, old string, option MountOption, create bool) error {
-	root, ok := fs.Root.(*UnionDir)
+	root, ok := fs.Root.(*unionDir)
 	if !ok {
-		return fmt.Errorf("cannot mount into non-union filesystem.")
+		return fmt.Errorf("cannot mount into non-union filesystem")
 	}
 
 	entry := mountEntry{
@@ -623,16 +650,22 @@ func Mount(fs *fs.FS, c *client.Client, old string, option MountOption, create b
 
 	if option == BEFORE || option == REPLACE {
 		root.mountTable = append([]mountEntry{entry}, root.mountTable...)
-	} else {
+	} else if option == AFTER {
 		root.mountTable = append(root.mountTable, entry)
+	} else {
+		return fmt.Errorf("unrecognized mount option for mount: %v", option)
 	}
 
 	return nil
 }
 
-// Bind a part of the filesystem to another part
+// Bind a path of the union filesystem to another old path.
+//
+// The provided filesystem must be a union filesystem created with NewUnionFS().
+// The create parameter indicates whether new files or directories at the old path
+// should be created with this client, unless a higher priority mount is also create.
 func Bind(fs *fs.FS, path string, old string, option MountOption, create bool) error {
-	root, ok := fs.Root.(*UnionDir)
+	root, ok := fs.Root.(*unionDir)
 	if !ok {
 		return fmt.Errorf("cannot bind into non-union filesystem")
 	}
@@ -640,7 +673,7 @@ func Bind(fs *fs.FS, path string, old string, option MountOption, create bool) e
 	// TODO handle mounting on files
 	pathdir := root.findDir(path)
 	if pathdir == nil {
-		return fmt.Errorf("cannot find path to bind")
+		return fmt.Errorf("cannot find directory to bind")
 	}
 
 	entry := mountEntry{
@@ -655,18 +688,21 @@ func Bind(fs *fs.FS, path string, old string, option MountOption, create bool) e
 
 	if option == BEFORE || option == REPLACE {
 		root.mountTable = append([]mountEntry{entry}, root.mountTable...)
-	} else {
+	} else if option == AFTER {
 		root.mountTable = append(root.mountTable, entry)
+	} else {
+		return fmt.Errorf("unknown mount option for bind: %v", option)
 	}
 
 	return nil
 }
 
-// Unmount everything that is mounted at the provided path.
+// Unmount everything that is mounted at the old path and return the 9p clients
+// that are unmounted.
 //
-// 9p clients that have been unmounted are returned.
+// The provided filesystem must be a union filesystem created with NewUnionFS().
 func UnmountPoint(fs *fs.FS, old string) ([]*client.Client, error) {
-	root, ok := fs.Root.(*UnionDir)
+	root, ok := fs.Root.(*unionDir)
 	if !ok {
 		return []*client.Client{}, fmt.Errorf("cannot unmount in a non-union filesystem")
 	}
@@ -690,9 +726,11 @@ func UnmountPoint(fs *fs.FS, old string) ([]*client.Client, error) {
 	return clients, nil
 }
 
-// Unmount the client that was previously mounted at the provided path.
+// Unmount the client that was previously mounted at the old path.
+//
+// The provided filesystem must be a union filesystem created using NewUnionFS().
 func UnmountClient(fs *fs.FS, c *client.Client, old string) error {
-	root, ok := fs.Root.(*UnionDir)
+	root, ok := fs.Root.(*unionDir)
 	if !ok {
 		return fmt.Errorf("cannot unmount in a non-union filesystem")
 	}
@@ -713,9 +751,11 @@ func UnmountClient(fs *fs.FS, c *client.Client, old string) error {
 	return nil
 }
 
-// Unmount the bind that was previously set at the provided path.
+// Unmount the bind path that was previously set at the old path.
+//
+// The provided filesytem must be a union filesystem created using NewUnionFS().
 func UnmountBind(fs *fs.FS, path string, old string) error {
-	root, ok := fs.Root.(*UnionDir)
+	root, ok := fs.Root.(*unionDir)
 	if !ok {
 		return fmt.Errorf("cannot unmount in a non-union filesystem")
 	}

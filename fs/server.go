@@ -195,6 +195,13 @@ func (s *server) Walk(gc go9p.Conn, t *proto.TWalk) (proto.FCall, error) {
 		}
 	}
 
+	if t.Nwname > 0 && t.Wname[0] == "." {
+		c.fids.Store(t.Newfid, info.deriveInfo(file))
+		qids := make([]proto.Qid, 1)
+		qids[0] = file.Stat().Qid
+		return &proto.RWalk{proto.Header{proto.Rwalk, t.Tag}, 1, qids}, nil
+	}
+
 	qids := make([]proto.Qid, 0)
 	for i := 0; i < int(t.Nwname); i++ {
 		if dir, ok := file.(Dir); ok {

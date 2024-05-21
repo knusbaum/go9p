@@ -626,7 +626,7 @@ func main() {
 	u, err := user.Current()
 	if err != nil {
 		defaultUser = "none"
-		log.Fatal("Failed to determine current user: %v", err)
+		log.Fatalf("Failed to determine current user: %v", err)
 	} else {
 		defaultUser = u.Username
 		su, _ := strconv.Atoi(u.Uid)
